@@ -71,7 +71,11 @@ const Login = () => {
 
       const data = await response.json();
       login(data, rememberMe);
-      navigate("/dashboard");
+      const from = location.state?.from;
+      const destination = from?.pathname?.startsWith("/dashboard")
+        ? `${from.pathname}${from.search || ""}${from.hash || ""}`
+        : "/dashboard";
+      navigate(destination, { replace: true });
     } catch (err) {
       setServerError(err.message || "Something went wrong. Please try again.");
     } finally {

@@ -1285,7 +1285,7 @@ export default function Dashboard() {
         {user?.role === "professor" && (activeTab === "data" || activeTab === "insights") && <ProfessorDashboardView user={user} activeTab={activeTab} />}
 
         {user?.role === "student" && activeTab === "insights" && (
-          <StudentInsights onForecastComplete={handleForecastCompleted} />
+          <StudentInsights onForecastComplete={handleForecastCompleted} latestForecast={latestForecast} />
         )}
 
         {activeTab === "history" && (

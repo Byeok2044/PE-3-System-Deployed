@@ -5,15 +5,20 @@ import { useAuth } from "../context/AuthContext";
 const scheduleToApi = (attendance) => (attendance === "day" ? "day" : "night");
 const TRACER_ANIMATION_DURATION_MS = 3000; // 3.0s exact full-perimeter trace
 
-export default function StudentInsights({ onForecastComplete }) {
+export default function StudentInsights({ onForecastComplete, latestForecast }) {
   const { apiFetch } = useAuth();
   const [record, setRecord] = useState(null);
   const [loadingRecord, setLoadingRecord] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
-  const [prediction, setPrediction] = useState(null);
+  const [prediction, setPrediction] = useState(latestForecast?.forecast || null);
   const [insight, setInsight] = useState(null);
   const [gettingInsight, setGettingInsight] = useState(false);
+
+  useEffect(() => {
+    setPrediction(latestForecast?.forecast || null);
+    setInsight(null);
+  }, [latestForecast]);
 
   useEffect(() => {
     let active = true;
@@ -151,7 +156,8 @@ export default function StudentInsights({ onForecastComplete }) {
         </div>
       </div>
       <p className="dashboard-subtext">
-        Run a forecast from your saved academic record. Each completed forecast is added to your History so you can compare it later.
+        {prediction ? "Your latest saved forecast is shown below. Run a new forecast after updating your academic record. " : "Run a forecast from your saved academic record. "}
+        Each completed forecast is added to your History so you can compare it later.
       </p>
 
       {error && <div className="login-alert" role="alert">{error}</div>}
