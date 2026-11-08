@@ -18,6 +18,7 @@ const mlRoutes = require('./routes/mlRoutes');
 const insightRoutes = require('./routes/insightRoutes');
 const professorRoutes = require('./routes/professorRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const datasetRoutes = require('./routes/datasetRoutes');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 connectDB();
@@ -78,6 +79,7 @@ app.use('/api/ml', mlRoutes);
 app.use('/api/insights', insightRoutes);
 app.use('/api/professor', professorRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/dataset', datasetRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

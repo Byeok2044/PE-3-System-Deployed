@@ -6,12 +6,14 @@ import logging
 
 import joblib
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, Field, model_validator
 
 from grading_scale import from_model_scale, to_model_scale
 from risk_thresholds import risk_level
 from risk_explanations import explain_risk
+from dataset_report import DatasetViewUnavailable, get_dataset_report
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -61,6 +63,50 @@ except Exception as error:  # Service stays observable even if artifacts are mis
 
 
 app = FastAPI(title="EduForecaster ML Service", version="1.0.0")
+
+
+DatasetView = Literal["raw", "cleaned", "excluded", "risk", "grade"]
+DatasetOutcome = Literal["all", "Dropout", "Enrolled", "Graduate", "Unknown"]
+
+
+def historical_dataset_report():
+    try:
+        return get_dataset_report(risk_model=risk_model, grade_model=grade_model)
+    except Exception:
+        logging.getLogger(__name__).exception("Historical dataset report is unavailable")
+        raise HTTPException(status_code=503, detail="The historical dataset report is temporarily unavailable.")
+
+
+@app.get("/dataset/summary")
+def dataset_summary():
+    return historical_dataset_report().summary
+
+
+@app.get("/dataset/rows")
+def dataset_rows(
+    view: DatasetView = "cleaned", page: int = Query(1, ge=1),
+    pageSize: int = Query(25, ge=1, le=100), outcome: DatasetOutcome = "all",
+    search: str = Query("", max_length=80),
+):
+    try:
+        return historical_dataset_report().rows(view, page=page, page_size=pageSize, outcome=outcome, search=search)
+    except DatasetViewUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error))
+
+
+@app.get("/dataset/download")
+def dataset_download(
+    view: DatasetView = "cleaned", outcome: DatasetOutcome = "all",
+    search: str = Query("", max_length=80),
+):
+    try:
+        content = historical_dataset_report().csv(view, outcome=outcome, search=search)
+        return Response(content=content, media_type="text/csv", headers={
+            "Content-Disposition": f'attachment; filename="retainify-dataset-{view}.csv"',
+            "X-Content-Type-Options": "nosniff",
+        })
+    except DatasetViewUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error))
 
 
 def to_model_features(payload: PredictionInput) -> pd.DataFrame:

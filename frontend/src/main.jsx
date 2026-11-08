@@ -15,6 +15,8 @@ import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import "./styles/Global.css";
 import "./styles/Responsive.css";
 
+const DatasetTransparency = React.lazy(() => import("./pages/DatasetTransparency.jsx"));
+
 // This finds the <div id="root"> in your index.html and renders the app inside it
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -29,6 +31,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="/register" element={<Register />} />
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route
+            path="/dataset"
+            element={
+              <React.Suspense fallback={<p role="status">Loading dataset transparency…</p>}>
+                <DatasetTransparency />
+              </React.Suspense>
+            }
+          />
           <Route
             path="/dashboard/*"
             element={

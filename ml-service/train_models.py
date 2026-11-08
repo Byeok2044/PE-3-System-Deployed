@@ -151,6 +151,16 @@ def clean_data(data: pd.DataFrame) -> pd.DataFrame:
     return cleaned.loc[cleaned[RISK_TARGET].notna() & valid_academic_values].copy()
 
 
+def add_completion_rate(data: pd.DataFrame) -> pd.DataFrame:
+    """Derive the same academic feature for training and dataset transparency."""
+    data = data.copy()
+    enrolled = data["Curricular units 1st sem (enrolled)"].replace(0, float("nan"))
+    data["Semester 1 completion rate"] = (
+        data["Curricular units 1st sem (approved)"].div(enrolled).fillna(0).clip(0, 1)
+    )
+    return data
+
+
 def load_data() -> pd.DataFrame:
     if not DATA_PATH.exists():
         raise FileNotFoundError(
@@ -170,11 +180,7 @@ def load_data() -> pd.DataFrame:
     if data.empty:
         raise ValueError("No valid rows remain after data cleaning.")
     print(f"Data cleaning retained {len(data):,} of {original_row_count:,} rows.")
-    enrolled = data["Curricular units 1st sem (enrolled)"].replace(0, float("nan"))
-    data["Semester 1 completion rate"] = (
-        data["Curricular units 1st sem (approved)"].div(enrolled).fillna(0).clip(0, 1)
-    )
-    return data
+    return add_completion_rate(data)
 
 
 def train_grade_model(features: pd.DataFrame, target: pd.Series) -> Pipeline:

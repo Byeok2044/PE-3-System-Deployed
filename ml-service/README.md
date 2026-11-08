@@ -81,6 +81,30 @@ The prediction API exposes the dropout probability and only its operational
 risk tier: `low` (below 0.20), `medium` (0.20–0.39), or `high` (0.40 and
 above). The model's internal outcome classes are not returned to educators.
 
+## Historical dataset transparency
+
+Open the frontend directly at `http://localhost:3000/dataset`. The page is
+public and read-only, with no entry in the home or dashboard navigation. It
+shows the bundled historical CSV, not student accounts or application records.
+
+The frontend requests `/api/dataset/summary`, `/api/dataset/rows`, and
+`/api/dataset/download` through Express. Express forwards these fixed routes to
+the matching `/dataset/*` endpoints on the FastAPI service. Start all three
+services as usual. No database queries are needed by these dataset endpoints.
+
+Raw, cleaned, excluded, and model-input views use stable CSV source-row IDs.
+Cleaning and completion-rate engineering reuse `train_models.py`. Model-input
+views call `transform` on the loaded fitted preprocessors, without refitting or
+retraining. Targets are displayed separately. CSV downloads include all columns
+and all matching rows under the current search and outcome filters. Page sizes
+are limited to 100 records. The prepared report is cached in memory and refreshed
+when the source file changes or the ML service restarts.
+
+The source fingerprint identifies the local file being inspected. It does not
+by itself certify equivalence to the original UCI release or establish which
+dataset version trained an externally replaced model. Original and cleaned
+views remain available if a fitted model is unavailable.
+
 ## Individual risk explanations
 
 New forecasts include `riskExplanation`, calculated from this student's actual

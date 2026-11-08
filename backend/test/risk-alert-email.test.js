@@ -89,3 +89,19 @@ test('unsafe application URL fails before contacting the email provider', async 
   await assert.rejects(sendRiskAlertEmail({ student, forecast }), /Invalid public application URL/);
   assert.equal(deliveries.length, 0);
 });
+
+test('professor delivery identifies the student and links to the professor trajectory dashboard', async () => {
+  const professor = { fullName: 'Professor <Test>', email: 'professor@example.test' };
+  await sendRiskAlertEmail({ student, forecast, professor });
+  const payload = deliveries[0][1];
+  assert.deepEqual(payload.to, [{ email: professor.email, name: professor.fullName }]);
+  assert.match(payload.subject, /Student support check-in: Student .*High support risk/);
+  assert.match(payload.htmlContent, /Hello Professor Professor &lt;Test&gt;/);
+  assert.match(payload.htmlContent, /Your connected student <strong>Student &lt;Test&gt; &amp; Family/);
+  assert.match(payload.htmlContent, /Student forecast summary/);
+  assert.match(payload.htmlContent, /3\.40 \/ 5/);
+  assert.match(payload.htmlContent, /lower numbers are better/);
+  assert.match(payload.htmlContent, /href="https:\/\/students\.example\.test\/dashboard"/);
+  assert.match(payload.htmlContent, /View Trajectory/);
+  assert.doesNotMatch(payload.htmlContent, /dashboard\/insights|student account|SHAP/);
+});
