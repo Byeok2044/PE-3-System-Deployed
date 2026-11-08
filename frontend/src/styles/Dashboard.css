@@ -1465,19 +1465,6 @@ div.caseload-controls .filter-select.risk-low svg * {
 .support-insight li { margin: 0.3rem 0; }
 .support-insight__disclaimer { color: #64788e; font-size: 0.78rem !important; }
 
-.risk-explanation { margin-top: 1.2rem; padding: 1.15rem; border: 1px solid #d7e7f5; border-radius: 8px; background: #fff; color: #29465f; }
-.risk-explanation h3 { margin: 0; color: #18324b; font-size: 1rem; }
-.risk-explanation p, .risk-explanation details { font-size: 0.87rem; line-height: 1.6; }
-.risk-explanation__table-wrap { overflow-x: auto; margin: 0.9rem 0; }
-.risk-explanation table { width: 100%; border-collapse: collapse; font-size: 0.83rem; text-align: left; }
-.risk-explanation caption { text-align: left; padding: 0 0 0.65rem; color: #526b82; }
-.risk-explanation th, .risk-explanation td { padding: 0.8rem; border-bottom: 1px solid #e1e9f0; vertical-align: top; }
-.risk-explanation thead th { background: #f1f5f9; color: #18324b; }
-.risk-explanation tbody th { min-width: 130px; font-weight: 600; }
-.risk-explanation__effect { display: inline-block; min-width: 140px; font-weight: 600; }
-.risk-explanation__effect--increases_risk { color: #9a3412; }
-.risk-explanation__effect--decreases_risk { color: #176b38; }
-.risk-explanation summary { cursor: pointer; font-weight: 600; }
 
 /* ==========================================================================
    My Professor & Connection Manager Module (Refined UI)

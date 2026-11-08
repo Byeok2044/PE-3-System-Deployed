@@ -65,7 +65,7 @@ const sendRiskAlertEmail = async ({ student, forecast }) => {
     {
       sender: {
         email: process.env.BREVO_SENDER_EMAIL,
-        name: process.env.BREVO_SENDER_NAME || 'Retainify',
+        name: 'Retainify',
       },
       to: [{ email: student.email, name: student.fullName }],
       subject: `Academic support check-in: ${displayRiskLevel(forecast.riskLevel)} support risk`,

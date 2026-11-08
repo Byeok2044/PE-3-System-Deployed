@@ -8,7 +8,7 @@ const forecast = {
   riskLevel: 'high', dropoutProbability: 0.7264,
   predictedNextSemesterGrade: 3.4, gradeMaximum: 5, completionRate: 0.625,
 };
-const envKeys = ['BREVO_API_KEY', 'BREVO_SENDER_EMAIL', 'PUBLIC_APP_URL', 'CLIENT_ORIGIN'];
+const envKeys = ['BREVO_API_KEY', 'BREVO_SENDER_EMAIL', 'BREVO_SENDER_NAME', 'PUBLIC_APP_URL', 'CLIENT_ORIGIN'];
 let originalEnv;
 let originalPost;
 let deliveries;
@@ -19,6 +19,7 @@ beforeEach(() => {
   deliveries = [];
   process.env.BREVO_API_KEY = 'test-key';
   process.env.BREVO_SENDER_EMAIL = 'support@example.test';
+  process.env.BREVO_SENDER_NAME = 'EduForecaster';
   process.env.PUBLIC_APP_URL = 'https://students.example.test/';
   axios.post = async (...args) => { deliveries.push(args); };
 });
@@ -36,6 +37,7 @@ test('high-risk delivery includes the forecast, correct scale guidance and a dir
   assert.equal(deliveries.length, 1);
   const [endpoint, payload] = deliveries[0];
   assert.equal(endpoint, 'https://api.brevo.com/v3/smtp/email');
+  assert.equal(payload.sender.name, 'Retainify');
   assert.deepEqual(payload.to, [{ email: student.email, name: student.fullName }]);
   const html = payload.htmlContent;
   assert.match(html, /Your forecast summary/);

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { BarChart3, Play, RefreshCw, ShieldCheck, Sparkles, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import RiskExplanation from "../components/RiskExplanation.jsx";
 
 const scheduleToApi = (attendance) => (attendance === "day" ? "day" : "night");
 const TRACER_ANIMATION_DURATION_MS = 3000; // 3.0s exact full-perimeter trace
@@ -205,8 +204,6 @@ export default function StudentInsights({ onForecastComplete, latestForecast }) 
               <strong>{prediction.riskLevel[0].toUpperCase() + prediction.riskLevel.slice(1)} support risk.</strong> This is a forecast, not a decision or diagnosis. Discuss it with an adviser or professor to identify useful support early.
             </p>
           </section>
-
-          <RiskExplanation explanation={prediction.riskExplanation} />
 
           <button
             type="button"

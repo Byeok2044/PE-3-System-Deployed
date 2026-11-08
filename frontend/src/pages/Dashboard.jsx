@@ -26,16 +26,7 @@ import {
   AlertOctagon,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from "recharts";
+import AcademicTrajectoryChart from "../components/AcademicTrajectoryChart.jsx";
 import { useAuth } from "../context/AuthContext";
 import BrandLogo from "../components/BrandLogo";
 import "../styles/Dashboard.css";
@@ -506,11 +497,9 @@ function AdvisorDashboardModule({ user }) {
 
                       {isExpanded && (() => {
                         const gradeScale = student.scale || student.gpa?.split("/")[1]?.trim() || "4.0";
-                        const currentGradeNum = parseFloat(student.gpa) || 0;
-                        const predictedGradeNum = parseFloat(student.predictedGrade) || 0;
-                        const { isAtRisk, chartDomain, isReversed, passingCutoff } = evaluateGrade(currentGradeNum, gradeScale);
-                        
-                        
+                        const currentGradeNum = parseFloat(student.gpa);
+                        const predictedGradeNum = parseFloat(student.predictedGrade);
+                        const gradeDetails = evaluateGrade(currentGradeNum, gradeScale);
 
                         return (
                           <tr className="trajectory-expansion-row">
@@ -524,43 +513,11 @@ function AdvisorDashboardModule({ user }) {
                                 </div>
 
                                 <div className="trajectory-content">
-                                  <div className="trajectory-chart-box">
-                                    <div className="trajectory-chart">
-                                      <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart
-                                          data={[
-                                            { term: "Current Term", grade: currentGradeNum },
-                                            { term: "Next Term (ML)", grade: predictedGradeNum },
-                                          ]}
-                                          margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                                        >
-                                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                          <XAxis dataKey="term" stroke="#64748b" fontSize={11} />
-                                          <YAxis
-                                            domain={chartDomain}
-                                            reversed={isReversed}
-                                            stroke="#64748b"
-                                            fontSize={11}
-                                          />
-                                          <Tooltip formatter={(val) => [val, "Grade"]} />
-                                          <ReferenceLine
-                                            y={passingCutoff}
-                                            label={{ value: `Cutoff (${passingCutoff})`, fill: "#d55752", fontSize: 10, x: 1100, dy: 18, position: "insideBottomRight"}}
-                                            stroke="#d55752"
-                                            strokeDasharray="3 3"
-                                          />
-                                          <Line
-                                            type="monotone"
-                                            dataKey="grade"
-                                            stroke={isAtRisk ? "#d55752" : "#0c5bb4"}
-                                            strokeWidth={2.5}
-                                            dot={{ r: 4, fill: isAtRisk ? "#d55752" : "#0c5bb4" }}
-                                            activeDot={{ r: 6 }}
-                                          />
-                                        </LineChart>
-                                      </ResponsiveContainer>
-                                    </div>
-                                  </div>
+                                  <AcademicTrajectoryChart
+                                    currentGrade={currentGradeNum}
+                                    predictedGrade={predictedGradeNum}
+                                    gradeDetails={gradeDetails}
+                                  />
                                 </div>
                               </div>
                             </td>
@@ -783,18 +740,6 @@ export default function Dashboard() {
     hasForecast
       ? evaluateGrade(forecastedGrade, gradeScaleType)
       : null;
-
-  const studentTrajectoryData = gradeDetails
-    ? [
-        {
-          term: "Current Term",
-          gpa: rawGradeNum,
-        },
-        ...(hasForecast
-          ? [{ term: "Next Term (ML Forecast)", gpa: forecastedGrade }]
-          : []),
-      ]
-    : [];
 
   const forecastPeriod = latestForecast?.createdAt
     ? new Date(latestForecast.createdAt).toLocaleDateString()
@@ -1180,51 +1125,21 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  <div className="chart-container" style={{ marginTop: "1rem" }}>
-                    <h4>Academic Trajectory vs. Passing Cutoff ({gradeDetails.passingCutoff})</h4>
+                  <div className="expanded-trajectory-wrapper" style={{ marginTop: "1rem" }}>
+                    <div className="trajectory-header">
+                      <TrendingUp size={18} color="#0c5bb4" />
+                      <h4>Academic Performance Trajectory Forecast ({gradeScaleType} Scale)</h4>
+                    </div>
                     <p className="chart-subtext">
                       {trajectorySource}. Forecast period: {hasForecast ? "next term" : "not available"}.
                     </p>
 
-                    <div style={{ width: "100%", height: 260 }}>
-                      <ResponsiveContainer>
-                        <LineChart
-                          data={studentTrajectoryData}
-                          margin={{ top: 15, right: 25, left: -10, bottom: 0 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5eaf1" />
-                          <XAxis dataKey="term" stroke="#718399" fontSize={12} />
-                          <YAxis
-                            domain={gradeDetails.chartDomain}
-                            reversed={gradeDetails.isReversed}
-                            stroke="#718399"
-                            fontSize={12}
-                          />
-                          <Tooltip
-                            formatter={(value) => [value, "Grade"]}
-                            contentStyle={{ borderRadius: "8px", border: "1px solid #c6d6e5" }}
-                          />
-                          <ReferenceLine
-                            y={gradeDetails.passingCutoff}
-                            label={{
-                              value: `Cutoff (${gradeDetails.passingCutoff})`,
-                              fill: "#a63834",
-                              position: "insideTopRight",
-                              fontSize: 11,
-                            }}
-                            stroke="#d55752"
-                            strokeDasharray="4 4"
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="gpa"
-                            stroke={gradeDetails.isAtRisk ? "#d55752" : "#0c5bb4"}
-                            strokeWidth={2.5}
-                            dot={{ r: 4, fill: gradeDetails.isAtRisk ? "#d55752" : "#0c5bb4" }}
-                            activeDot={{ r: 6 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
+                    <div className="trajectory-content">
+                      <AcademicTrajectoryChart
+                        currentGrade={rawGradeNum}
+                        predictedGrade={hasForecast ? forecastedGrade : undefined}
+                        gradeDetails={gradeDetails}
+                      />
                     </div>
                   </div>
                 </div>

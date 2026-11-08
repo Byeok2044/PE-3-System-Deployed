@@ -34,6 +34,9 @@ test('prompt requires verified reasons, directions and actions linked to the lar
   assert.match(prompt, /NOT an input to the dropout-risk model/);
   assert.match(prompt, /NOT attendance rate/);
   assert.match(prompt, /not proven causes/);
+  assert.match(prompt, /SHAP contributions only as internal evidence/);
+  assert.match(prompt, /without mentioning SHAP, baseline probabilities, or exact percentage-point contributions/);
+  assert.ok(prompt.includes(JSON.stringify(forecast)));
 });
 
 test('validated narratives retain trusted labels, values and numerical evidence', () => {
