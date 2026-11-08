@@ -81,6 +81,33 @@ The prediction API exposes the dropout probability and only its operational
 risk tier: `low` (below 0.20), `medium` (0.20–0.39), or `high` (0.40 and
 above). The model's internal outcome classes are not returned to educators.
 
+## Individual risk explanations
+
+New forecasts include `riskExplanation`, calculated from this student's actual
+paths through the fitted Random Forest. At each split, the change in Dropout
+probability is assigned to the input used by that split. Averaging over trees
+gives additive contributions: `baselineProbability + sum(contributions / 100)`
+reconstructs the predicted dropout probability (allowing for output rounding).
+The baseline is the average weighted root-node probability, not a population
+dropout rate or the student's previous prediction. Contributions are measured
+in **percentage points** and can increase or decrease the estimate.
+
+One-hot schedule columns are combined. Units enrolled, units passed, and
+completion rate are grouped to avoid presenting closely related values as
+independent explanations. Values shown to the student retain their chosen
+grading scale. This is a tree-path decomposition, not SHAP or causal evidence;
+split order and correlated inputs can affect how contributions are allocated.
+It does not promise that changing a field will change risk by that amount.
+
+The backend passes these factors to Gemini and validates that reasons and
+actions refer to supported factors with the correct direction. Older saved
+forecasts are not retrospectively assigned reasons from a different model;
+students must run a new forecast. Restart the ML service and backend after
+updating, then run a new forecast before requesting support suggestions.
+
+Implementation references: [Random Forest probabilities](https://scikit-learn.org/1.8/modules/generated/sklearn.ensemble.RandomForestClassifier.html#sklearn.ensemble.RandomForestClassifier.predict_proba)
+and [decision-tree structure](https://scikit-learn.org/1.8/auto_examples/tree/plot_unveil_tree_structure.html).
+
 ## Flexible grading scales
 
 The trained grade model uses the Kaggle dataset's `0–20` scale internally. The

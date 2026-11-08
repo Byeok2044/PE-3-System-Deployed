@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { BarChart3, Play, RefreshCw, ShieldCheck, Sparkles, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import RiskExplanation from "../components/RiskExplanation.jsx";
 
 const scheduleToApi = (attendance) => (attendance === "day" ? "day" : "night");
 const TRACER_ANIMATION_DURATION_MS = 3000; // 3.0s exact full-perimeter trace
@@ -205,6 +206,8 @@ export default function StudentInsights({ onForecastComplete, latestForecast }) 
             </p>
           </section>
 
+          <RiskExplanation explanation={prediction.riskExplanation} />
+
           <button
             type="button"
             className="dashboard-action support-insight-button"
@@ -217,8 +220,27 @@ export default function StudentInsights({ onForecastComplete, latestForecast }) 
 
           {insight && (
             <section className="support-insight" aria-labelledby="support-insight-title">
-              <h3 id="support-insight-title"><Sparkles size={18} /> Suggested next steps</h3>
+              <h3 id="support-insight-title"><Sparkles size={18} /> Your explanation and next steps</h3>
               <p>{insight.summary}</p>
+              {insight.explanationStatus === "unavailable" && (
+                <p>Model-based reasons are unavailable for this saved forecast. Run a new forecast before requesting a detailed risk explanation.</p>
+              )}
+              {insight.riskReasons?.length > 0 && (
+                <>
+                  <h4>Why the model raised your risk estimate</h4>
+                  <ul>{insight.riskReasons.map((item) => (
+                    <li key={item.factorKey}><strong>{item.factorLabel}:</strong> {item.explanation}</li>
+                  ))}</ul>
+                </>
+              )}
+              {insight.protectiveFactors?.length > 0 && (
+                <>
+                  <h4>What lowered your risk estimate</h4>
+                  <ul>{insight.protectiveFactors.map((item) => (
+                    <li key={item.factorKey}><strong>{item.factorLabel}:</strong> {item.explanation}</li>
+                  ))}</ul>
+                </>
+              )}
               {insight.strengths?.length > 0 && (
                 <>
                   <h4>Strengths to build on</h4>
@@ -231,8 +253,18 @@ export default function StudentInsights({ onForecastComplete, latestForecast }) 
                 <>
                   <h4>Actions you can take</h4>
                   <ul>
-                    {insight.suggestedActions.map((item) => <li key={item}>{item}</li>)}
+                    {insight.suggestedActions.map((item, index) => (
+                      <li key={`${item.factorKey || "legacy"}-${index}`}>
+                        {typeof item === "string" ? item : <><strong>{item.factorLabel}:</strong> {item.action}</>}
+                      </li>
+                    ))}
                   </ul>
+                </>
+              )}
+              {insight.discussionQuestions?.length > 0 && (
+                <>
+                  <h4>Questions to discuss with your adviser</h4>
+                  <ul>{insight.discussionQuestions.map((item) => <li key={item}>{item}</li>)}</ul>
                 </>
               )}
               <p className="support-insight__disclaimer">{insight.disclaimer}</p>

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Literal
+import logging
 
 import joblib
 import pandas as pd
@@ -10,6 +11,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from grading_scale import from_model_scale, to_model_scale
 from risk_thresholds import risk_level
+from risk_explanations import explain_risk
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -104,6 +106,13 @@ def predict(payload: PredictionInput):
         raise HTTPException(status_code=500, detail="Risk model has no Dropout probability output.")
     dropout_index = class_names.index("Dropout")
     dropout_probability = float(risk_model.predict_proba(features)[0][dropout_index])
+    try:
+        risk_explanation = explain_risk(risk_model, features, payload.model_dump(), dropout_probability)
+    except Exception:
+        # An incompatible future artifact must not produce invented reasons or
+        # prevent the student from seeing their forecast.
+        logging.getLogger(__name__).exception("Risk explanation could not be calculated")
+        risk_explanation = {"available": False}
 
     return {
         "predictedNextSemesterGrade": round(predicted_grade, 2),
@@ -111,6 +120,7 @@ def predict(payload: PredictionInput):
         "dropoutProbability": round(dropout_probability, 4),
         "riskLevel": risk_level(dropout_probability),
         "completionRate": round(payload.previousSemesterUnitsApproved / payload.previousSemesterUnitsEnrolled, 4),
+        "riskExplanation": risk_explanation,
         "models": {
             "gradeForecast": "Linear Regression",
             "attritionRisk": "Random Forest Classifier",
