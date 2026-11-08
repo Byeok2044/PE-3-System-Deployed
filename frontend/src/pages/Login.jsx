@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import BrandLogo from "../components/BrandLogo";
 import "../styles/Login.css";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [rememberMe, setRememberMe] = useState(false);
@@ -17,6 +17,10 @@ const Login = () => {
   const [needsVerification, setNeedsVerification] = useState(false);
   const [resendMessage, setResendMessage] = useState("");
   const [isResending, setIsResending] = useState(false);
+  const from = location.state?.from;
+  const destination = from?.pathname?.startsWith("/dashboard")
+    ? `${from.pathname}${from.search || ""}${from.hash || ""}`
+    : "/dashboard";
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -71,10 +75,6 @@ const Login = () => {
 
       const data = await response.json();
       login(data, rememberMe);
-      const from = location.state?.from;
-      const destination = from?.pathname?.startsWith("/dashboard")
-        ? `${from.pathname}${from.search || ""}${from.hash || ""}`
-        : "/dashboard";
       navigate(destination, { replace: true });
     } catch (err) {
       setServerError(err.message || "Something went wrong. Please try again.");
@@ -101,6 +101,9 @@ const Login = () => {
       setIsResending(false);
     }
   };
+
+  if (isLoading) return <div className="auth-loading">Checking your session.</div>;
+  if (isAuthenticated) return <Navigate to={destination} replace />;
 
   return (
     <div className="login-page">

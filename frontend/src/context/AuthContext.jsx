@@ -4,8 +4,10 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { createSessionChannel } from "./sessionChannel.js";
 
 const AuthContext = createContext(null);
 const STORAGE_KEY = "eduforecaster_session";
@@ -27,34 +29,73 @@ export function AuthProvider({ children }) {
     () => getStoredSession()?.session ?? null,
   );
   const [isLoading, setIsLoading] = useState(true);
+  const sessionChannel = useRef(null);
+  const sessionVersion = useRef(0);
 
-  const logout = useCallback(() => {
+  const clearSession = useCallback(() => {
+    sessionVersion.current += 1;
     localStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(STORAGE_KEY);
     setSession(null);
+    setIsLoading(false);
   }, []);
 
+  const logout = useCallback(() => {
+    clearSession();
+    sessionChannel.current?.announceLogout();
+  }, [clearSession]);
+
   useEffect(() => {
-    const stored = getStoredSession();
-    if (!stored?.session?.token) {
-      setIsLoading(false);
-      return;
-    }
-    fetch("/api/auth/me", {
-      headers: { Authorization: `Bearer ${stored.session.token}` },
-    })
-      .then(async (response) => {
+    let active = true;
+    const restoreSession = async () => {
+      const version = ++sessionVersion.current;
+      const isCurrent = () => active && sessionVersion.current === version;
+      setIsLoading(true);
+      try {
+        let stored = getStoredSession();
+        if (!stored?.session?.token) {
+          const shared = await channel.requestSession();
+          if (!isCurrent()) return;
+          if (shared?.token) stored = { session: shared, storage: sessionStorage };
+        }
+        if (!stored?.session?.token) {
+          if (isCurrent()) setSession(null);
+          return;
+        }
+        const response = await fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${stored.session.token}` },
+        });
         if (!response.ok) throw new Error("Session expired");
         const { user } = await response.json();
+        if (!isCurrent()) return;
         const updated = { ...stored.session, user };
         stored.storage.setItem(STORAGE_KEY, JSON.stringify(updated));
         setSession(updated);
-      })
-      .catch(logout)
-      .finally(() => setIsLoading(false));
-  }, [logout]);
+      } catch {
+        if (isCurrent()) logout();
+      } finally {
+        if (isCurrent()) setIsLoading(false);
+      }
+    };
+
+    const channel = createSessionChannel({
+      readSession: () => getStoredSession()?.session,
+      onSessionAvailable: () => {
+        if (!getStoredSession()?.session?.token) restoreSession();
+      },
+      onLogout: clearSession,
+    });
+    sessionChannel.current = channel;
+    restoreSession();
+    return () => {
+      active = false;
+      channel.close();
+      if (sessionChannel.current === channel) sessionChannel.current = null;
+    };
+  }, [clearSession, logout]);
 
   const login = useCallback((data, remember = false) => {
+    sessionVersion.current += 1;
     const nextSession = { token: data.token, user: data.user };
     localStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(STORAGE_KEY);
@@ -63,6 +104,8 @@ export function AuthProvider({ children }) {
       JSON.stringify(nextSession),
     );
     setSession(nextSession);
+    setIsLoading(false);
+    sessionChannel.current?.announceSession();
   }, []);
 
   const apiFetch = useCallback(
