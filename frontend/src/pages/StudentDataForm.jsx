@@ -117,8 +117,8 @@ export default function StudentDataForm({ onSaveRecord }) {
       setHoverModal({
         title: "Tuition Fee Status",
         message: isTrue
-          ? "All tuition dues and school payment accounts are fully up to date."
-          : "You have unsettled payment in your tuition fees.",
+          ? "Tuition requirements for your student profile are complete."
+          : "Your registration requirements remain incomplete.",
         variant: isTrue ? "success" : "warning",
       });
     } else if (field === "scholarshipStatus") {
@@ -126,7 +126,7 @@ export default function StudentDataForm({ onSaveRecord }) {
         title: "Scholarship Status",
         message: isTrue
           ? "You indicated an active scholarship or academic grant."
-          : "You answered that you don't have a scholarship.",
+          : "You answered that you don't have an active student scholarship.",
         variant: isTrue ? "success" : "info",
       });
     }
