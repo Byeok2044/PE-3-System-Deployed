@@ -1,0 +1,64 @@
+# Retainify: verify SAVED Random Forest predictions, without retraining.
+# The embedded snapshot was produced from risk_model.joblib and the exact
+# held-out stratified split. Hashes below identify the source model and data.
+# Predictions keep the ORIGINAL 3-class argmax decision before binary mapping.
+# This is NOT the dashboard's 40% high-risk threshold evaluation.
+import base64
+import io
+import numpy as np
+from Orange.data import Table, Domain, ContinuousVariable, DiscreteVariable, StringVariable
+from Orange.evaluation import Results, CA, Precision, Recall, F1, AUC
+from sklearn.metrics import confusion_matrix, average_precision_score, brier_score_loss
+
+PROVENANCE = __PROVENANCE__
+PAYLOAD = '__PAYLOAD__'
+snapshot = np.load(io.BytesIO(base64.b64decode(PAYLOAD)), allow_pickle=False)
+actual = (snapshot['original_actual'] == 'Dropout').astype(float)
+predicted = (snapshot['original_predicted'] == 'Dropout').astype(float)
+probability = snapshot['dropout_probability']
+class_var = DiscreteVariable('Actual outcome', values=('Not Dropout', 'Dropout'))
+domain = Domain(
+    [ContinuousVariable(str(n)) for n in snapshot['feature_names']],
+    class_var,
+    [StringVariable('Original actual outcome'), StringVariable('Original predicted outcome'),
+     DiscreteVariable('Predicted binary outcome', values=('Not Dropout', 'Dropout')),
+     ContinuousVariable('Dropout probability'), ContinuousVariable('Source CSV row')])
+metas = np.empty((len(actual), 5), dtype=object)
+metas[:, 0] = snapshot['original_actual']
+metas[:, 1] = snapshot['original_predicted']
+metas[:, 2] = predicted
+metas[:, 3] = probability
+metas[:, 4] = snapshot['source_csv_row']
+test_data = Table.from_numpy(domain, snapshot['features'], actual, metas=metas)
+test_data.name = 'Retainify: 849 held-out students (saved-model snapshot)'
+results = Results(data=test_data, actual=actual, predicted=predicted[None, :],
+    probabilities=np.stack([1-probability, probability], axis=1)[None, :, :],
+    row_indices=np.arange(len(actual)), score_by_folds=False,
+    failed=[False])
+results.learner_names = ['Retainify RF - saved 3-class model']
+out_object = results
+cm = confusion_matrix(actual, predicted, labels=[0, 1])
+tn, fp, fn, tp = cm.ravel()
+values = [
+    ('Binary accuracy', float(CA(results)[0])),
+    ('Dropout precision', float(Precision(results, target=1)[0])),
+    ('Dropout recall', float(Recall(results, target=1)[0])),
+    ('Dropout F1', float(F1(results, target=1)[0])),
+    ('Dropout ROC-AUC', float(AUC(results, target=1)[0])),
+    ('Not-dropout specificity', float(tn/(tn+fp))),
+    ('Dropout average precision (PR)', float(average_precision_score(actual, probability))),
+    ('Dropout Brier score', float(brier_score_loss(actual, probability))),
+]
+score_domain = Domain([ContinuousVariable('Score', number_of_decimals=6)],
+    metas=[StringVariable('Metric')])
+out_data = Table.from_numpy(score_domain, np.array([[v] for _, v in values]),
+    metas=np.array([[n] for n, _ in values], dtype=object))
+out_data.name = 'Retainify saved RF: held-out binary evaluation'
+print('SAVED RANDOM FOREST VERIFICATION - no retraining in Orange')
+print('Training rows:', PROVENANCE['train_rows'], '| Test rows:', len(actual))
+print('Actual rows / predicted columns: Not Dropout, Dropout')
+print(cm)
+for name, value in values:
+    print(f'{name}: {value:.6f}')
+print('Model SHA256:', PROVENANCE['model_sha256'])
+print('Dataset SHA256:', PROVENANCE['dataset_sha256'])

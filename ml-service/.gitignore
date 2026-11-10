@@ -2,3 +2,6 @@
 __pycache__/
 *.joblib
 data/dataset.csv
+
+# Local Orange evidence regenerated from each developer's saved models.
+artifacts/orange/

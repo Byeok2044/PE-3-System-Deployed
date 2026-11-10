@@ -36,7 +36,7 @@ attendance-rate field.
 ## Train locally
 
 1. Place `dataset.csv` in `data/dataset.csv`.
-2. Install Python 3.10 or later.
+2. Install Python 3.11 or later (required by the pinned scikit-learn version).
 3. In this directory, run:
 
    ```powershell
@@ -57,6 +57,78 @@ impossible academic records: fewer than one enrolled unit, negative approved
 units, approved units exceeding enrolled units, or grades outside the dataset's
 0–20 scale. Valid low grades and zero approved units are retained because they
 are meaningful attrition signals.
+
+## Reproduce the evaluation in Orange on another device
+
+Use the same repository revision, `data/dataset.csv`, and both saved model
+artifacts. Having the models alone is not enough: evaluation also needs the
+historical records and their actual outcomes. Install the pinned dependencies
+in this service's virtual environment; keep Orange in its own environment.
+
+From `ml-service`, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe export_orange_evaluation.py
+```
+
+If the environment does not exist yet, create it first with
+`py -m venv .venv` using Python 3.11 or later. Existing saved models are evaluated
+without retraining or replacing them.
+
+Generated files are placed in the git-ignored `artifacts/orange/` directory:
+
+| File | Purpose |
+| --- | --- |
+| `grade_train.csv`, `grade_test.csv` | The exact unstratified 80/20 grade-model split, seed 42. |
+| `grade_predictions.csv`, `grade_metrics.json` | Saved grade-model predictions, row-level errors, MAE, RMSE, R2 and the calculation totals. |
+| `risk_train.csv`, `risk_test.csv` | The exact 80/20 risk-model split, stratified by the original outcome, seed 42. |
+| `risk_predictions.csv`, `risk_metrics.json` | Saved risk-model predictions, dropout probabilities, actual outcomes and classification metrics. |
+| `verify_saved_random_forest.py` | A self-contained Python Script widget program with this device's evaluated prediction snapshot. |
+| `provenance.json` | Dataset/model SHA256 fingerprints, row counts, split information and dependency version. |
+
+For the grade evaluation in Orange, load the two grade CSVs, set the second
+semester grade as the numeric target in **Select Columns** on both paths, and
+connect training data to **Test & Score / Data** and test data to
+**Test & Score / Test Data**. Connect a **Linear Regression** learner with no
+regularization and fit intercept enabled, then choose **Test on test data**.
+This retrains an equivalent linear model in Orange. Compare its results with
+`grade_metrics.json`, which evaluates the local saved grade model directly.
+
+For the saved Random Forest verification:
+
+1. Open a **Python Script** widget. Choose **More > Import Script from File**
+   and select the generated `verify_saved_random_forest.py`, then click **Run**.
+2. Add **Confusion Matrix**, **ROC Analysis**, and **Data Table** widgets.
+3. Make these actual signal connections (drawn annotation arrows do not connect data):
+
+   | Source signal | Destination signal |
+   | --- | --- |
+   | Python Script / Object | Confusion Matrix / Evaluation Results |
+   | Python Script / Object | ROC Analysis / Evaluation Results |
+   | Python Script / Data | Data Table / Data (the metrics table) |
+
+4. In **Confusion Matrix**, choose **Number of instances**. In **ROC Analysis**,
+   choose **Dropout** as the target.
+5. Optionally connect **Confusion Matrix / Selected Data** to another
+   **Data Table / Data** to inspect the students represented by selected cells.
+6. Save the workflow as an `.ows` file. Run its Python Script again if outputs
+   are blank after reopening.
+
+The forest's original predicted outcome is mapped to Dropout/Not Dropout after
+prediction. This preserves the existing binary evaluation; it does not train
+a different binary forest and does not use the dashboard's 40% high-risk
+threshold. Orange independently computes scores from the saved predictions.
+
+The script embeds the evaluated records and predictions, so its saved workflow
+can be shared without changing absolute paths. Opening someone else's workflow
+replays their snapshot; it does **not** evaluate your device's model. To verify
+your own model, rerun the exporter and import your newly generated script.
+
+Compare `provenance.json` across developers before expecting identical metrics.
+Different model or dataset files can produce different results. Fingerprints
+identify the files evaluated, but held-out validity still depends on the models
+having been trained with this dataset and the documented training split.
 
 ## Improve the attrition-risk model
 
