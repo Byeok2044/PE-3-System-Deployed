@@ -7,7 +7,7 @@ import ForgotPassword from "./pages/ForgotPassword.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
 import VerifyEmail from "./pages/VerifyEmail.jsx";
 import Register from "./pages/Register.jsx";
-import TermsOfService from "./pages/TermsOfService.jsx";
+import TermsOfService from "./pages/Termsofservice.jsx";
 import PrivacyPolicy from "./pages/PrivacyPolicy.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
