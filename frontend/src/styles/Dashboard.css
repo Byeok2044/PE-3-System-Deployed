@@ -252,7 +252,7 @@
 
 .dashboard-summary article.risk-card-green {
   border-color: #16a34a !important;
-  box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.15), 0 2px 8px rgba(22, 163, 74, 0.08) !important;
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.15), 0 2px 8px rgba(220, 38, 38, 0.08) !important;
 }
 
 .dashboard-summary article.risk-card-green:hover {
@@ -286,15 +286,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.risk-stat-badge .risk-stat-caption {
-  font-size: 0.58rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-top: 0.15rem;
-  line-height: 1;
-}
-
 .risk-stat-badge.red {
   background: #fef2f2;
   color: #dc2626;
@@ -322,25 +313,10 @@
   flex-shrink: 0;
 }
 
-.summary-icon.red {
-  color: #dc2626 !important;
-  background: #fef2f2 !important;
-}
-
-.summary-icon.amber {
-  color: #ea580c !important;
-  background: #fff7ed !important;
-}
-
-.summary-icon.green {
-  color: #16a34a !important;
-  background: #f0fdf4 !important;
-}
-
-.summary-icon.blue {
-  color: #1762b9 !important;
-  background: #e5f0ff !important;
-}
+.summary-icon.red { color: #dc2626 !important; background: #fef2f2 !important; }
+.summary-icon.amber { color: #ea580c !important; background: #fff7ed !important; }
+.summary-icon.green { color: #16a34a !important; background: #f0fdf4 !important; }
+.summary-icon.blue { color: #1762b9 !important; background: #e5f0ff !important; }
 
 .dashboard-summary strong {
   display: block;
@@ -616,7 +592,10 @@
   line-height: 1.5;
 }
 
-/* Workspace Panels & Shared Elements */
+/* ==========================================================================
+   Workspace Panels & Shared Elements
+   ========================================================================== */
+
 .workspace-section {
   width: 100%;
   max-width: 100%;
@@ -885,7 +864,7 @@
   border-color: #16a34a !important;
   background-color: #f7fef9;
   transform: translateY(-2px);
-  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.25),
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.25),
               0 0 16px 2px rgba(22, 163, 74, 0.35),
               0 10px 24px rgba(22, 163, 74, 0.15) !important;
 }
@@ -908,29 +887,18 @@
   flex-shrink: 0;
 }
 
-.summary-card .card-icon.red {
-  color: #dc2626 !important;
-  background: #fef2f2 !important;
-}
+.summary-card .card-icon.red { color: #dc2626 !important; background: #fef2f2 !important; }
+.summary-card .card-icon.amber { color: #ea580c !important; background: #fff7ed !important; }
+.summary-card .card-icon.green { color: #16a34a !important; background: #f0fdf4 !important; }
+.summary-card .card-icon.silver { color: #526b82; background: #eff4f8; }
+.summary-card .card-icon.blue { color: #1762b9; background: #e5f0ff; }
 
-.summary-card .card-icon.amber {
-  color: #ea580c !important;
-  background: #fff7ed !important;
-}
-
-.summary-card .card-icon.green {
-  color: #16a34a !important;
-  background: #f0fdf4 !important;
-}
-
-.summary-card .card-icon.silver { 
-  color: #526b82; 
-  background: #eff4f8; 
-}
-
-.summary-card .card-icon.blue {
-  color: #1762b9;
-  background: #e5f0ff;
+.summary-card .card-details {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  text-align: left;
 }
 
 .summary-card .card-value {
@@ -1055,14 +1023,18 @@
 
 .tabular-student-container {
   width: 100%;
-  overflow-x: auto;
+  max-width: 100%;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid #e1e9f0;
   border-radius: 10px;
   background: #fff;
+  box-sizing: border-box;
 }
 
 .student-metrics-table {
   width: 100%;
+  min-width: 520px;
   border-collapse: collapse;
   font-size: 0.83rem;
 }
@@ -1074,6 +1046,7 @@
   padding: 0.85rem 1rem;
   border-bottom: 1px solid #e1e9f0;
   text-align: center;
+  white-space: nowrap;
 }
 
 .student-metrics-table td {
@@ -1082,6 +1055,7 @@
   color: #18324b;
   vertical-align: middle;
   text-align: center;
+  white-space: nowrap;
 }
 
 .student-metrics-table tbody tr:not(.trajectory-expansion-row):hover td { 
@@ -1152,6 +1126,7 @@
   font-size: 0.74rem;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
 .action-button.secondary:hover {
@@ -1446,9 +1421,8 @@
 .support-insight li { margin: 0.3rem 0; }
 .support-insight__disclaimer { color: #64788e; font-size: 0.78rem !important; }
 
-
 /* ==========================================================================
-   My Professor & Connection Manager Module (Refined UI)
+   My Professor & Connection Manager Module
    ========================================================================== */
 
 .connection-manager {
@@ -1637,7 +1611,8 @@
 
 /* Connected Professor Cards List */
 .connection-list { 
-  display: grid; 
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem; 
   padding: 0; 
   margin: 1.2rem 0 0; 
@@ -1649,8 +1624,9 @@
 .connection-list li { 
   display: flex; 
   align-items: center; 
-  gap: 0.65rem; 
-  padding: 0.9rem 1.1rem; 
+  justify-content: space-between;
+  gap: 0.85rem; 
+  padding: 0.95rem 1.15rem; 
   border: 1px solid #e1eaf1; 
   border-radius: 10px; 
   background: #ffffff; 
@@ -1682,8 +1658,8 @@
 }
 
 .connection-person { 
+  flex: 1;
   min-width: 0; 
-  margin-right: auto; 
 }
 
 .connection-person strong { 
@@ -1712,12 +1688,13 @@
   align-items: center; 
   gap: 0.3rem; 
   flex: 0 0 auto; 
-  padding: 0.32rem 0.65rem; 
+  padding: 0.28rem 0.65rem; 
   border-radius: 99px; 
-  font-size: 0.7rem; 
+  font-size: 0.72rem; 
   font-weight: 800; 
   text-transform: capitalize;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .connection-status--pending { 
@@ -1786,8 +1763,8 @@
 .connection-button--existing:disabled { cursor: default; opacity: 1; }
 
 .connection-msg { 
-  width: 32px; 
-  height: 32px; 
+  width: 34px; 
+  height: 34px; 
   background: #eaf2ff; 
   color: #0c5bb4; 
   border-color: #c9e0fa;
@@ -1805,8 +1782,8 @@
 }
 
 .connection-remove { 
-  width: 32px; 
-  height: 32px; 
+  width: 34px; 
+  height: 34px; 
 }
 
 .connection-button--decline:hover, 
@@ -1882,7 +1859,7 @@
 .connected-student-card__summary span, .connected-student-card__details span { display: block; color: #718399; font-size: 0.67rem; }
 .connected-student-card__summary strong { display: block; margin-top: 0.2rem; color: #29465f; font-size: 0.76rem; }
 .connected-student-card__details summary { display: flex; align-items: center; gap: 0.35rem; padding: 0.78rem 0.85rem; color: #0c5bb4; cursor: pointer; font-size: 0.74rem; font-weight: 700; }
-.connected-student-card__details > div { display: grid; gap: 0.55rem; padding: 0 0.85rem 0.85rem; }
+.connected-student-card__details > div { display: grid; gap: 0.55rem; padding: 0.85rem; }
 .connected-student-card__details p { margin: 0; }
 .connected-student-card__details strong { display: block; margin-top: 0.16rem; color: #29465f; font-size: 0.74rem; }
 .connected-student-card__empty { display: flex; gap: 0.5rem; padding: 1rem; color: #718399; }
@@ -1988,6 +1965,10 @@
 
 .support-workflow__notice { display: flex; gap: 0.4rem; margin: 1rem 0 0; color: #64788e; font-size: 0.72rem; line-height: 1.45; }
 .support-workflow__notice svg { flex: none; color: #197154; }
+
+/* ==========================================================================
+   Full Message Center Layout & Threads (Original Exact Syntax Restored)
+   ========================================================================== */
 
 .message-center { padding: 1.75rem 0; }
 .profile-avatar { flex-shrink: 0; overflow: hidden; }
@@ -2275,7 +2256,55 @@
 }
 
 /* ==========================================================================
-   Responsive Breakpoints
+   Professor Dedicated Fixed Graph Card & Row Selection
+   ========================================================================== */
+
+.row-selected-highlight td {
+  background-color: #f0f7ff !important;
+  border-bottom-color: #cbdff7 !important;
+}
+
+.active-inspection-btn {
+  background: #0c5bb4 !important;
+  color: #ffffff !important;
+  border-color: #0c5bb4 !important;
+}
+
+.student-inspect-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.65rem;
+  border-radius: 9999px;
+  background: #eaf2ff;
+  border: 1px solid #c9e0fa;
+  color: #0c5bb4;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.professor-trajectory-view {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.professor-graph-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+.professor-graph-card .trajectory-content {
+  width: 100% !important;
+  min-height: 280px;
+  overflow: hidden !important;
+}
+
+/* ==========================================================================
+   Responsive Breakpoints & 2-Column Mobile Layout System
    ========================================================================== */
 
 @media (max-width: 980px) {
@@ -2300,7 +2329,7 @@
   .app-main {
     margin-left: 0;
     width: 100%;
-    padding: 0 1.2rem 2rem;
+    padding: 0 1rem 2rem;
   }
 
   .mobile-brand {
@@ -2337,7 +2366,7 @@
   }
 
   .dashboard-intro {
-    padding-top: 2rem;
+    padding-top: 1.6rem;
   }
 
   .professor-hero { 
@@ -2365,20 +2394,6 @@
 
   .dashboard-guidance {
     align-items: flex-start;
-  }
-
-  .connection-list li { 
-    align-items: flex-start; 
-    flex-wrap: wrap; 
-  }
-
-  .connection-status { 
-    margin-left: auto; 
-  }
-
-  .connection-actions { 
-    width: 100%; 
-    justify-content: flex-end; 
   }
 
   .professor-overview-connections ul { 
@@ -2420,9 +2435,68 @@
   }
 }
 
+/* MOBILE SCREENS (< 640px): 2-Column Summary Cards, Left Alignment, 2-Tier Connection Cards */
 @media (max-width: 640px) {
-  .professor-caseload { 
-    padding: 1.15rem; 
+  .advisor-summary-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.65rem !important;
+    width: 100% !important;
+  }
+
+  /* Cards 1 to 4: Compact 2-column layout */
+  .summary-card {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    gap: 0.45rem !important;
+    padding: 0.85rem !important;
+    min-height: 100px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .summary-card .card-details {
+    align-items: flex-start !important;
+    text-align: left !important;
+    width: auto !important;
+  }
+
+  /* 5th Card ("Pending Requests") spans across both columns, sits left-aligned without stretching text */
+  .advisor-summary-grid > .summary-card:nth-child(5) {
+    grid-column: 1 / -1 !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 0.85rem !important;
+    min-height: 68px !important;
+  }
+
+  .advisor-summary-grid > .summary-card:nth-child(5) .card-details {
+    align-items: flex-start !important;
+    text-align: left !important;
+    width: auto !important;
+  }
+
+  .summary-card .card-icon {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .summary-card .card-value {
+    font-size: 1.15rem !important;
+  }
+
+  .summary-card .card-label {
+    font-size: 0.74rem !important;
+  }
+
+  .summary-card small {
+    font-size: 0.62rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .workspace-section {
+    padding: 1.1rem 0.95rem;
   }
 
   .section-heading { 
@@ -2437,6 +2511,18 @@
 
   .caseload-controls .search-box {
     max-width: 100%;
+  }
+
+  /* Smooth Table Touch Scroll */
+  .tabular-student-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .student-metrics-table {
+    min-width: 520px !important;
   }
 
   .history-timeline-item {
@@ -2454,6 +2540,46 @@
 
   .connected-students-list {
     grid-template-columns: 1fr;
+  }
+
+  /* Clean 2-Tier Mobile Connection Card (Zero Gaps, Balanced Alignment) */
+  .connection-list li {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 0.65rem 0.75rem !important;
+    padding: 0.85rem 1rem !important;
+  }
+
+  .connection-avatar {
+    flex: 0 0 40px !important;
+    margin: 0 !important;
+  }
+
+  .connection-person {
+    flex: 1 1 calc(100% - 55px) !important;
+    min-width: 0 !important;
+  }
+
+  .connection-status {
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .connection-actions {
+    margin-left: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    flex-shrink: 0 !important;
+  }
+
+  .professor-trajectory-view {
+    padding: 1rem 0.85rem !important;
+  }
+
+  .professor-graph-card {
+    padding: 0.95rem 0.85rem !important;
   }
 }
 

@@ -40,7 +40,7 @@ import useAdaptivePolling from "../hooks/useAdaptivePolling.js";
 import ProfessorDashboardView from "./ProfessorDashboardView.jsx";
 import ProfessorHistoryView from "./ProfessorHistoryView.jsx";
 
-// Route-aware count-up hook
+// Route-aware count-up animation hook
 function useCountUp(target, triggerKey, duration = 1200) {
   const [count, setCount] = useState(0);
 
@@ -156,23 +156,40 @@ export function evaluateGrade(rawGradeNum, scaleType) {
   let chartDomain = [1.0, 4.0];
   let isReversed = false;
   if (scale === "100") {
-    passingCutoff = 75.0; chartDomain = [50, 100]; isAtRisk = rawGradeNum < 75.0; label = `${rawGradeNum} / 100`;
+    passingCutoff = 75.0; 
+    chartDomain = [50, 100]; 
+    isAtRisk = rawGradeNum < 75.0; 
+    label = `${rawGradeNum} / 100`;
   } else if (scale === "20") {
-    passingCutoff = 10.0; chartDomain = [0, 20]; isAtRisk = rawGradeNum < 10.0; label = `${rawGradeNum} / 20`;
+    passingCutoff = 10.0; 
+    chartDomain = [0, 20]; 
+    isAtRisk = rawGradeNum < 10.0; 
+    label = `${rawGradeNum} / 20`;
   } else if (scale === "5-inv" || scale === "5") {
-    passingCutoff = 3.0; chartDomain = [1.0, 5.0]; isReversed = true; isAtRisk = rawGradeNum > 3.0;
+    passingCutoff = 3.0; 
+    chartDomain = [1.0, 5.0]; 
+    isReversed = true; 
+    isAtRisk = rawGradeNum > 3.0;
     label = `${rawGradeNum.toFixed(2)} / 5.00 (1.0 Highest)`;
   } else {
-    isAtRisk = rawGradeNum < 2.0; label = `${rawGradeNum.toFixed(2)} / 4.00`;
+    isAtRisk = rawGradeNum < 2.0; 
+    label = `${rawGradeNum.toFixed(2)} / 4.00`;
   }
   return { isAtRisk, label, passingCutoff, chartDomain, isReversed };
 }
 
 function DashboardNavLink({ tab, currentTab, children }) {
   const path = tab === "overview" ? "/dashboard" : `/dashboard/${tab}`;
-  return <NavLink to={path} end={tab === "overview"}
-    className={({ isActive }) => isActive ? "active" : ""}
-    aria-current={currentTab === tab ? "page" : undefined}>{children}</NavLink>;
+  return (
+    <NavLink
+      to={path}
+      end={tab === "overview"}
+      className={({ isActive }) => (isActive ? "active" : "")}
+      aria-current={currentTab === tab ? "page" : undefined}
+    >
+      {children}
+    </NavLink>
+  );
 }
 
 function AdvisorDashboardModule({ user }) {
@@ -180,7 +197,7 @@ function AdvisorDashboardModule({ user }) {
   const navigate = useNavigate();
   const [connectedStudentsData, setConnectedStudentsData] = useState([]);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
-  const [expandedStudentId, setExpandedStudentId] = useState(null);
+  const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [filterRisk, setFilterRisk] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
@@ -189,13 +206,22 @@ function AdvisorDashboardModule({ user }) {
   useAdaptivePolling(async () => {
     try {
       const [connectionResponse, studentsResponse] = await Promise.all([
-        apiFetch("/api/connections"), apiFetch("/api/professor/students"),
+        apiFetch("/api/connections"),
+        apiFetch("/api/professor/students"),
       ]);
       if (!connectionResponse.ok || !studentsResponse.ok) throw new Error("Could not refresh connected students.");
-      const [connectionData, studentData] = await Promise.all([connectionResponse.json(), studentsResponse.json()]);
-      setPendingRequestsCount((connectionData.connections || []).filter(item => item.status === "pending").length);
-      setConnectedStudentsData(studentData.students || []); setError("");
-    } catch (err) { setError(err.message); } finally { setLoading(false); }
+      const [connectionData, studentData] = await Promise.all([
+        connectionResponse.json(), 
+        studentsResponse.json()
+      ]);
+      setPendingRequestsCount((connectionData.connections || []).filter((item) => item.status === "pending").length);
+      setConnectedStudentsData(studentData.students || []);
+      setError("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, { intervalMs: 15000 });
 
   const formattedStudents = useMemo(() => {
@@ -208,11 +234,16 @@ function AdvisorDashboardModule({ user }) {
       return {
         id: String(student.id || student._id),
         name: student.fullName || "Unknown Student",
+        email: student.email || "",
         gpa: record ? `${record.previousSemesterGrade} / ${record.gradeMaximum}` : "N/A",
+        rawGrade: record ? Number(record.previousSemesterGrade) : null,
+        gradeMaximum: record?.gradeMaximum || forecast?.gradeMaximum || "4.0",
         attendance: record ? (record.attendance === "day" ? "Day" : "Night") : "N/A",
         riskScore: Number.isFinite(dropoutProbability) ? percentage(dropoutProbability) : "—",
         riskLevel,
         predictedGrade: forecast ? `${forecast.predictedNextSemesterGrade} / ${forecast.gradeMaximum}` : "N/A",
+        rawPredictedGrade: forecast ? Number(forecast.predictedNextSemesterGrade) : null,
+        forecastDate: forecast?.createdAt ? new Date(forecast.createdAt).toLocaleDateString() : null,
       };
     });
   }, [connectedStudentsData]);
@@ -232,9 +263,15 @@ function AdvisorDashboardModule({ user }) {
     });
   }, [formattedStudents, filterRisk, searchTerm]);
 
-  const toggleExpand = (studentId) => {
-    setExpandedStudentId((prev) => (prev === studentId ? null : studentId));
-  };
+  useEffect(() => {
+    if (!selectedStudentId && formattedStudents.length > 0) {
+      setSelectedStudentId(formattedStudents[0].id);
+    }
+  }, [formattedStudents, selectedStudentId]);
+
+  const selectedStudent = useMemo(() => {
+    return formattedStudents.find((s) => s.id === selectedStudentId) || null;
+  }, [formattedStudents, selectedStudentId]);
 
   const handleCardFilterClick = (tier) => {
     setFilterRisk((prev) => (prev === tier ? "all" : tier));
@@ -242,6 +279,11 @@ function AdvisorDashboardModule({ user }) {
 
   if (loading) return <p className="connected-students-loading">Loading professor dashboard...</p>;
   if (error) return <p className="connected-students-error" role="alert">{error}</p>;
+
+  const selectedGradeDetails =
+    selectedStudent && selectedStudent.rawGrade !== null
+      ? evaluateGrade(selectedStudent.rawGrade, selectedStudent.gradeMaximum)
+      : null;
 
   return (
     <div className="advisor-dashboard">
@@ -253,7 +295,7 @@ function AdvisorDashboardModule({ user }) {
         </p>
       </section>
 
-      {/* Interactive summary cards */}
+      {/* 2-Column Responsive Metric Cards */}
       <section className="advisor-summary-grid">
         <div
           className={`summary-card clickable ${filterRisk === "high" ? "active-filter border-red" : ""}`}
@@ -325,7 +367,6 @@ function AdvisorDashboardModule({ user }) {
           </div>
         </div>
 
-        {/* Pending Requests card: redirects directly to /dashboard/connections */}
         <div
           className="summary-card clickable"
           role="button"
@@ -343,15 +384,16 @@ function AdvisorDashboardModule({ user }) {
         </div>
       </section>
 
+      {/* Caseload Performance Table */}
       <section className="workspace-section">
         <div className="section-heading">
           <div>
             <p className="dashboard-eyebrow">Connected Student Performance</p>
-            <h2>Attrition Risk and Academic Trajectory Overview</h2>
+            <h2>Attrition Risk and Academic Overview</h2>
           </div>
         </div>
 
-        <div className="caseload-controls" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div className="caseload-controls">
           <div className="search-box">
             <Search size={15} />
             <input
@@ -382,30 +424,11 @@ function AdvisorDashboardModule({ user }) {
             </p>
           </div>
         ) : filteredStudents.length === 0 ? (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              minHeight: "150px",
-              padding: "2rem",
-              margin: "1rem 0",
-              border: "1px dashed #cbd9e6",
-              borderRadius: "8px",
-              backgroundColor: "#fbfdff",
-              textAlign: "center",
-              gap: "0.85rem",
-              boxSizing: "border-box",
-            }}
-          >
-            <p style={{ margin: 0, color: "#64788e", fontSize: "0.88rem" }}>
-              No students match the current filter ({filterRisk.toUpperCase()} risk).
-            </p>
+          <div className="student-search-empty-state">
+            <p>No students match the current filter ({filterRisk.toUpperCase()} risk).</p>
             <button
               type="button"
               className="action-button secondary"
-              style={{ fontSize: "0.78rem", padding: "6px 14px" }}
               onClick={() => {
                 setFilterRisk("all");
                 setSearchTerm("");
@@ -423,70 +446,42 @@ function AdvisorDashboardModule({ user }) {
                   <th>Student Name</th>
                   <th>Current Grade</th>
                   <th>Attrition Risk</th>
-                  <th>Actions</th>
+                  <th>Inspection</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredStudents.map((student, idx) => {
-                  const isExpanded = expandedStudentId === student.id;
+                  const isSelected = selectedStudentId === student.id;
                   return (
-                    <React.Fragment key={student.id}>
-                      <tr className={isExpanded ? "row-expanded" : ""}>
-                        <td>{idx + 1}</td>
-                        <td>
-                          <strong>{student.name}</strong>
-                        </td>
-                        <td><strong>{student.gpa}</strong></td>
-                        <td>
-                          <span className={`risk-pill ${student.riskLevel || "pending"}`}>
-                            {student.riskScore} {student.riskLevel ? `· ${riskLabel(student.riskLevel)}` : "· Forecast pending"}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="action-button secondary"
-                            onClick={() => toggleExpand(student.id)}
-                          >
-                            {isExpanded ? (
-                              <>Hide Trajectory <ChevronUp size={14} /></>
-                            ) : (
-                              <>View Trajectory <ChevronDown size={14} /></>
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-
-                      {isExpanded && (() => {
-                        const gradeScale = student.scale || student.gpa?.split("/")[1]?.trim() || "4.0";
-                        const currentGradeNum = parseFloat(student.gpa);
-                        const predictedGradeNum = parseFloat(student.predictedGrade);
-                        const gradeDetails = evaluateGrade(currentGradeNum, gradeScale);
-
-                        return (
-                          <tr className="trajectory-expansion-row">
-                            <td colSpan={5}>
-                              <div className="expanded-trajectory-wrapper">
-                                <div className="trajectory-header">
-                                  <TrendingUp size={18} color="#0c5bb4" />
-                                  <h4>
-                                    Academic Performance Trajectory Forecast ({gradeScale} Scale)
-                                  </h4>
-                                </div>
-
-                                <div className="trajectory-content">
-                                  <AcademicTrajectoryChart
-                                    currentGrade={currentGradeNum}
-                                    predictedGrade={predictedGradeNum}
-                                    gradeDetails={gradeDetails}
-                                  />
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })()}
-                    </React.Fragment>
+                    <tr
+                      key={student.id}
+                      className={isSelected ? "row-selected-highlight" : ""}
+                      onClick={() => setSelectedStudentId(student.id)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <td>{idx + 1}</td>
+                      <td>
+                        <strong>{student.name}</strong>
+                      </td>
+                      <td><strong>{student.gpa}</strong></td>
+                      <td>
+                        <span className={`risk-pill ${student.riskLevel || "pending"}`}>
+                          {student.riskScore} {student.riskLevel ? `· ${riskLabel(student.riskLevel)}` : "· Forecast pending"}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={`action-button secondary ${isSelected ? "active-inspection-btn" : ""}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedStudentId(student.id);
+                          }}
+                        >
+                          {isSelected ? "Inspecting Graph" : "Inspect Trajectory"}
+                        </button>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -494,6 +489,71 @@ function AdvisorDashboardModule({ user }) {
           </div>
         )}
       </section>
+
+      {/* Static Dedicated Fixed Graph Card (Matches Student View) */}
+      {selectedStudent && (
+        <section className="workspace-section professor-trajectory-view" style={{ marginTop: "0.5rem" }}>
+          <div className="section-heading">
+            <div>
+              <p className="dashboard-eyebrow">Predictive Outlook</p>
+              <h2>{selectedStudent.name}&apos;s Academic Trajectory Graph</h2>
+            </div>
+            <span className="student-inspect-tag">Inspecting Student</span>
+          </div>
+
+          {selectedGradeDetails !== null ? (
+            <div style={{ marginTop: "1rem" }}>
+              <div className={`alert-banner ${!selectedGradeDetails.isAtRisk ? "banner-safe" : ""}`}>
+                <Sparkles size={16} />
+                <div>
+                  {selectedGradeDetails.isAtRisk ? (
+                    <>
+                      <strong>Warning:</strong> Recorded grade (<strong>{selectedGradeDetails.label}</strong>) is currently below the institutional retention cutoff of {selectedGradeDetails.passingCutoff}.
+                    </>
+                  ) : (
+                    <>
+                      <strong>On Track:</strong> Recorded grade (<strong>{selectedGradeDetails.label}</strong>) indicates satisfactory academic progress.
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="expanded-trajectory-wrapper professor-graph-card" style={{ marginTop: "1rem" }}>
+                <div className="trajectory-header">
+                  <TrendingUp size={18} color="#0c5bb4" />
+                  <h4>Academic Performance Trajectory Forecast ({selectedStudent.gradeMaximum} Scale)</h4>
+                </div>
+                <p className="chart-subtext">
+                  {selectedStudent.rawPredictedGrade !== null
+                    ? `ML-service forecast generated ${selectedStudent.forecastDate || "previously"}`
+                    : "Historical academic record (no ML forecast available)"}
+                  . Forecast period: {selectedStudent.rawPredictedGrade !== null ? "next term" : "not available"}.
+                </p>
+
+                <div className="trajectory-content">
+                  <AcademicTrajectoryChart
+                    currentGrade={selectedStudent.rawGrade}
+                    predictedGrade={selectedStudent.rawPredictedGrade !== null ? selectedStudent.rawPredictedGrade : undefined}
+                    gradeDetails={selectedGradeDetails}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="empty-state" style={{ minHeight: "160px" }}>
+              <div className="empty-illustration">
+                <TrendingUp size={24} />
+              </div>
+              <div>
+                <h3>No Academic Trajectory Available</h3>
+                <p>
+                  No prior semester grade records uploaded for {selectedStudent.name}. Upload the student record through CSV in the Data Workspace first.
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -516,28 +576,25 @@ export default function Dashboard() {
 
   const [studentRecord, setStudentRecord] = useState(null);
   const [latestForecast, setLatestForecast] = useState(null);
-
-  // Unread messages state for sidebar badge
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [showProfile, setShowProfile] = useState(false);
   const closeProfile = useCallback(() => setShowProfile(false), []);
 
-  // Logout confirmation modal state
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-
-  // 5-second balloon pop states
   const [isInflating, setIsInflating] = useState(false);
   const [isPopped, setIsPopped] = useState(false);
   const [showPopModal, setShowPopModal] = useState(false);
   const popTimerRef = useRef(null);
 
   const activeTab = TAB_BY_PATH[location.pathname] || "overview";
+
   useEffect(() => {
     if (location.pathname === '/dashboard/profile') {
       setShowProfile(true);
       navigate('/dashboard', { replace: true });
     }
   }, [location.pathname, navigate]);
+
   const nextStep = NEXT_STEPS_BY_ROLE[user?.role] ?? NEXT_STEPS_BY_ROLE.student;
   const roleLabel = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : "User";
 
@@ -608,7 +665,7 @@ export default function Dashboard() {
   const hasForecastRisk = Boolean(forecastRiskLevel);
   const forecastIsAtRisk = ["medium", "high"].includes(forecastRiskLevel);
   const dropoutProbability = Number(latestForecast?.forecast?.dropoutProbability);
-  
+
   const exactDropoutPercent = Number.isFinite(dropoutProbability)
     ? Math.round(dropoutProbability * 100)
     : 0;
@@ -643,7 +700,6 @@ export default function Dashboard() {
     return "green";
   })();
 
-  // Balloon Hover & Pop Handlers
   const handleMouseEnterRisk = () => {
     setIsInflating(true);
     popTimerRef.current = setTimeout(() => {
@@ -695,7 +751,11 @@ export default function Dashboard() {
           <DashboardNavLink tab="overview" currentTab={activeTab}>
             <LayoutDashboard size={18} /> Overview
           </DashboardNavLink>
-          {user?.role === "professor" && <DashboardNavLink tab="data" currentTab={activeTab}><Database size={18} /> Data Workspace</DashboardNavLink>}
+          {user?.role === "professor" && (
+            <DashboardNavLink tab="data" currentTab={activeTab}>
+              <Database size={18} /> Data Workspace
+            </DashboardNavLink>
+          )}
           {user?.role !== "professor" && user?.role !== "administrator" && (
             <>
               <DashboardNavLink tab="data" currentTab={activeTab}>
@@ -711,8 +771,7 @@ export default function Dashboard() {
               <UsersRound size={18} /> {user.role === "student" ? "Professors" : "Students"}
             </DashboardNavLink>
           )}
-          
-          {/* MESSAGES WITH UNREAD BADGE */}
+
           {hasConnectionAccess && (
             <DashboardNavLink tab="messages" currentTab={activeTab}>
               <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
@@ -776,7 +835,15 @@ export default function Dashboard() {
         <header className="app-topbar">
           <BrandLogo className="mobile-brand" to="/dashboard" />
           <div className="account-menu">
-            <button type="button" className="user-initials profile-trigger" onClick={() => setShowProfile(true)} aria-label="Open my profile" aria-haspopup="dialog">{user.profileImage ? <img src={user.profileImage} alt="" /> : userInitials}</button>
+            <button
+              type="button"
+              className="user-initials profile-trigger"
+              onClick={() => setShowProfile(true)}
+              aria-label="Open my profile"
+              aria-haspopup="dialog"
+            >
+              {user.profileImage ? <img src={user.profileImage} alt="" /> : userInitials}
+            </button>
             <div>
               <strong>{user?.fullName || "User"}</strong>
               <small>{roleLabel}</small>
@@ -808,12 +875,19 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {sessionError && <div className="login-alert" role="alert"><p>{sessionError}</p><button type="button" className="connection-button" onClick={retrySession}>Retry session check</button></div>}
+        {sessionError && (
+          <div className="login-alert" role="alert">
+            <p>{sessionError}</p>
+            <button type="button" className="connection-button" onClick={retrySession}>
+              Retry session check
+            </button>
+          </div>
+        )}
 
         <nav className="mobile-dashboard-nav" aria-label="Mobile navigation">
           <DashboardNavLink tab="overview" currentTab={activeTab}>Overview</DashboardNavLink>
           {user?.role === "professor" && <DashboardNavLink tab="data" currentTab={activeTab}>Data</DashboardNavLink>}
-          
+
           {user?.role !== "professor" && user?.role !== "administrator" && (
             <>
               <DashboardNavLink tab="data" currentTab={activeTab}>Data</DashboardNavLink>
@@ -827,7 +901,6 @@ export default function Dashboard() {
             </DashboardNavLink>
           )}
 
-          {/* MOBILE MESSAGES TAB WITH UNREAD BADGE */}
           {hasConnectionAccess && (
             <DashboardNavLink tab="messages" currentTab={activeTab}>
               <span style={{ position: "relative" }}>
@@ -881,14 +954,12 @@ export default function Dashboard() {
             </section>
 
             <section className="dashboard-summary" aria-label="Advisor module objectives">
-              {/* Card 1: 5-Second Hover Balloon Pop Container */}
-              <article 
+              <article
                 className={`risk-card-${alertCardColor} ${isInflating ? "balloon-inflating" : ""} ${isPopped ? "balloon-popped" : ""}`}
                 onMouseEnter={handleMouseEnterRisk}
                 onMouseLeave={handleMouseLeaveRisk}
                 title="Hold hover for 5 seconds to inspect action directives"
               >
-                {/* Visual explosion particles on pop */}
                 {isPopped && (
                   <div className="balloon-shards">
                     <span className="shard s1" />
@@ -925,7 +996,6 @@ export default function Dashboard() {
                 </div>
               </article>
 
-              {/* Card 2: Formatted Current Term Grade */}
               <article>
                 <span className="summary-icon blue">
                   <BarChart3 size={19} />
@@ -942,7 +1012,6 @@ export default function Dashboard() {
                 </div>
               </article>
 
-              {/* Card 3: Next Semester Projected Grade (ML Output) */}
               <article>
                 <span className={`summary-icon ${projectedGradeDetails?.isAtRisk ? "amber" : "green"}`}>
                   <TrendingUp size={19} />
@@ -962,16 +1031,15 @@ export default function Dashboard() {
               </article>
             </section>
 
-            {/* Balloon Pop Modal Directives */}
             {showPopModal && (
               <div className="risk-pop-backdrop" onClick={() => setShowPopModal(false)}>
-                <div 
-                  className={`risk-pop-modal border-${alertCardColor}`} 
+                <div
+                  className={`risk-pop-modal border-${alertCardColor}`}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <button 
-                    type="button" 
-                    className="risk-pop-close" 
+                  <button
+                    type="button"
+                    className="risk-pop-close"
                     onClick={() => setShowPopModal(false)}
                     aria-label="Close modal"
                   >
@@ -986,8 +1054,8 @@ export default function Dashboard() {
                   <p>{popContent.message}</p>
 
                   <div className="risk-pop-actions">
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       className={`risk-pop-action-btn ${alertCardColor}`}
                       onClick={() => {
                         setShowPopModal(false);
@@ -998,8 +1066,8 @@ export default function Dashboard() {
                     >
                       {popContent.action}
                     </button>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       className="risk-pop-dismiss-btn"
                       onClick={() => setShowPopModal(false)}
                     >
@@ -1107,7 +1175,9 @@ export default function Dashboard() {
           <MessageCenter onUnreadCountChange={setUnreadMessagesCount} />
         )}
 
-        {user?.role === "professor" && (activeTab === "data" || activeTab === "insights") && <ProfessorDashboardView user={user} activeTab={activeTab} />}
+        {user?.role === "professor" && (activeTab === "data" || activeTab === "insights") && (
+          <ProfessorDashboardView user={user} activeTab={activeTab} />
+        )}
 
         {user?.role === "student" && activeTab === "insights" && (
           <StudentInsights onForecastComplete={handleForecastCompleted} latestForecast={latestForecast} />
@@ -1119,21 +1189,20 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* Logout Confirmation Dialog Modal */}
       {showLogoutModal && (
-        <div 
-          className="risk-pop-backdrop" 
-          style={{ zIndex: 1200 }} 
+        <div
+          className="risk-pop-backdrop"
+          style={{ zIndex: 1200 }}
           onClick={handleCloseLogoutModal}
         >
-          <div 
-            className="risk-pop-modal" 
+          <div
+            className="risk-pop-modal"
             style={{ maxWidth: "400px", textAlign: "center" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <button 
-              type="button" 
-              className="risk-pop-close" 
+            <button
+              type="button"
+              className="risk-pop-close"
               onClick={handleCloseLogoutModal}
               aria-label="Close modal"
             >
@@ -1145,13 +1214,13 @@ export default function Dashboard() {
             </div>
 
             <h3 style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Confirm Log Out</h3>
-            <p style={{ color: "#64748b", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
+            <p style={{ color: "#64788e", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
               Are you sure you want to log out of your session?
             </p>
 
             <div className="risk-pop-actions" style={{ justifyContent: "center" }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="risk-pop-action-btn red"
                 style={{ backgroundColor: "#ef4444", color: "#ffffff", minWidth: "120px" }}
                 onClick={handleConfirmLogout}
