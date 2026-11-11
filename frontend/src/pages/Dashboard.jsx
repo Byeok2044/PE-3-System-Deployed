@@ -561,6 +561,9 @@ export default function Dashboard() {
   const [showProfile, setShowProfile] = useState(false);
   const closeProfile = useCallback(() => setShowProfile(false), []);
 
+  // Logout confirmation modal state
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
   // 5-second balloon pop states
   const [isInflating, setIsInflating] = useState(false);
   const [isPopped, setIsPopped] = useState(false);
@@ -695,9 +698,18 @@ export default function Dashboard() {
     setLatestForecast(forecastRun);
   }, []);
 
-  const handleLogout = () => {
+  const handleLogoutClick = () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setShowLogoutModal(false);
     logout();
     navigate("/login", { replace: true });
+  };
+
+  const handleCloseLogoutModal = () => {
+    setShowLogoutModal(false);
   };
 
   const userInitials = user?.fullName
@@ -895,7 +907,7 @@ export default function Dashboard() {
               <strong>{user?.fullName || "User"}</strong>
               <small>{roleLabel}</small>
             </div>
-            <button type="button" onClick={handleLogout} aria-label="Log out">
+            <button type="button" onClick={handleLogoutClick} aria-label="Log out">
               <LogOut size={17} />
             </button>
           </div>
@@ -1207,6 +1219,51 @@ export default function Dashboard() {
           <HistoryView user={user} nextStep={nextStep} />
         )}
       </main>
+
+      {/* Logout Confirmation Dialog Modal */}
+      {showLogoutModal && (
+        <div 
+          className="risk-pop-backdrop" 
+          style={{ zIndex: 1200 }} 
+          onClick={handleCloseLogoutModal}
+        >
+          <div 
+            className="risk-pop-modal" 
+            style={{ maxWidth: "400px", textAlign: "center" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              type="button" 
+              className="risk-pop-close" 
+              onClick={handleCloseLogoutModal}
+              aria-label="Close modal"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="risk-pop-icon red" style={{ margin: "0 auto 1rem" }}>
+              <LogOut size={26} />
+            </div>
+
+            <h3 style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Confirm Log Out</h3>
+            <p style={{ color: "#64748b", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
+              Are you sure you want to log out of your session?
+            </p>
+
+            <div className="risk-pop-actions" style={{ justifyContent: "center" }}>
+              <button 
+                type="button" 
+                className="risk-pop-action-btn red"
+                style={{ backgroundColor: "#ef4444", color: "#ffffff", minWidth: "120px" }}
+                onClick={handleConfirmLogout}
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showProfile && <Profile onClose={closeProfile} />}
     </div>
   );
