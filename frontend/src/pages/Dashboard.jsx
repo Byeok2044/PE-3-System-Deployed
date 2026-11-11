@@ -9,7 +9,6 @@ import {
   ChevronUp,
   Clock,
   Database,
-  Filter,
   History as HistoryIcon,
   LayoutDashboard,
   LogOut,
@@ -239,6 +238,7 @@ function DashboardNavLink({ tab, currentTab, children }) {
 
 function AdvisorDashboardModule({ user }) {
   const { apiFetch } = useAuth();
+  const navigate = useNavigate();
   const [connectedStudentsData, setConnectedStudentsData] = useState([]);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [expandedStudentId, setExpandedStudentId] = useState(null);
@@ -328,11 +328,8 @@ function AdvisorDashboardModule({ user }) {
     setExpandedStudentId((prev) => (prev === studentId ? null : studentId));
   };
 
-  const getFilterIconColor = () => {
-    if (filterRisk === "high") return "#dc2626";
-    if (filterRisk === "medium") return "#ea580c";
-    if (filterRisk === "low") return "#16a34a";
-    return "#70869b";
+  const handleCardFilterClick = (tier) => {
+    setFilterRisk((prev) => (prev === tier ? "all" : tier));
   };
 
   if (loading) return <p className="connected-students-loading">Loading professor dashboard...</p>;
@@ -348,8 +345,16 @@ function AdvisorDashboardModule({ user }) {
         </p>
       </section>
 
+      {/* Interactive summary cards */}
       <section className="advisor-summary-grid">
-        <div className="summary-card">
+        <div
+          className={`summary-card clickable ${filterRisk === "high" ? "active-filter border-red" : ""}`}
+          role="button"
+          tabIndex={0}
+          onClick={() => handleCardFilterClick("high")}
+          onKeyDown={(e) => e.key === "Enter" && handleCardFilterClick("high")}
+          title="Click to filter by High Risk"
+        >
           <div className="card-icon red"><AlertTriangle size={20} /></div>
           <div className="card-details">
             <span className="card-value">
@@ -360,7 +365,14 @@ function AdvisorDashboardModule({ user }) {
           </div>
         </div>
 
-        <div className="summary-card">
+        <div
+          className={`summary-card clickable ${filterRisk === "medium" ? "active-filter border-amber" : ""}`}
+          role="button"
+          tabIndex={0}
+          onClick={() => handleCardFilterClick("medium")}
+          onKeyDown={(e) => e.key === "Enter" && handleCardFilterClick("medium")}
+          title="Click to filter by Medium Risk"
+        >
           <div className="card-icon amber"><TrendingDown size={20} /></div>
           <div className="card-details">
             <span className="card-value">
@@ -371,7 +383,14 @@ function AdvisorDashboardModule({ user }) {
           </div>
         </div>
 
-        <div className="summary-card">
+        <div
+          className={`summary-card clickable ${filterRisk === "low" ? "active-filter border-green" : ""}`}
+          role="button"
+          tabIndex={0}
+          onClick={() => handleCardFilterClick("low")}
+          onKeyDown={(e) => e.key === "Enter" && handleCardFilterClick("low")}
+          title="Click to filter by Low Risk"
+        >
           <div className="card-icon green"><UserCheck size={20} /></div>
           <div className="card-details">
             <span className="card-value">
@@ -382,7 +401,14 @@ function AdvisorDashboardModule({ user }) {
           </div>
         </div>
 
-        <div className="summary-card">
+        <div
+          className={`summary-card clickable ${filterRisk === "all" ? "active-filter border-blue" : ""}`}
+          role="button"
+          tabIndex={0}
+          onClick={() => setFilterRisk("all")}
+          onKeyDown={(e) => e.key === "Enter" && setFilterRisk("all")}
+          title="Click to view all students"
+        >
           <div className="card-icon blue"><UsersRound size={20} /></div>
           <div className="card-details">
             <span className="card-value">{connectedStudentsData.length}</span>
@@ -391,12 +417,20 @@ function AdvisorDashboardModule({ user }) {
           </div>
         </div>
 
-        <div className="summary-card">
+        {/* Pending Requests card: redirects directly to /dashboard/connections */}
+        <div
+          className="summary-card clickable"
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate("/dashboard/connections")}
+          onKeyDown={(e) => e.key === "Enter" && navigate("/dashboard/connections")}
+          title="Click to review and manage pending connection requests"
+        >
           <div className="card-icon silver"><Clock size={20} /></div>
           <div className="card-details">
             <span className="card-value">{pendingRequestsCount}</span>
             <span className="card-label">Pending Requests</span>
-            <small>Awaiting your approval</small>
+            <small>Click to review approvals</small>
           </div>
         </div>
       </section>
@@ -409,40 +443,27 @@ function AdvisorDashboardModule({ user }) {
           </div>
         </div>
 
-        <div className="caseload-controls">
+        <div className="caseload-controls" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div className="search-box">
             <Search size={15} />
             <input
               type="text"
-              placeholder="Search student name"
+              placeholder="Search student name or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
-          <div
-            className={`filter-select ${filterRisk !== "all" ? `risk-${filterRisk}` : ""}`}
-            data-risk={filterRisk}
-          >
-            <Filter
-              size={15}
-              color={getFilterIconColor()}
-              stroke={getFilterIconColor()}
-              style={{
-                stroke: getFilterIconColor(),
-                color: getFilterIconColor(),
-              }}
-            />
-            <select
-              value={filterRisk}
-              onChange={(e) => setFilterRisk(e.target.value.toLowerCase())}
+          {filterRisk !== "all" && (
+            <button
+              type="button"
+              className="action-button secondary"
+              onClick={() => setFilterRisk("all")}
+              style={{ fontSize: "0.8rem", padding: "4px 10px" }}
             >
-              <option value="all">Attrition Tiers</option>
-              <option value="high">High Risk</option>
-              <option value="medium">Medium Risk</option>
-              <option value="low">Low Risk</option>
-            </select>
-          </div>
+              Reset Filter ({filterRisk.toUpperCase()}) ×
+            </button>
+          )}
         </div>
 
         {formattedStudents.length === 0 ? (
@@ -451,6 +472,39 @@ function AdvisorDashboardModule({ user }) {
             <p>
               No connected students from {user.institution || "your institution"} yet. Approve connection requests to view student records here.
             </p>
+          </div>
+        ) : filteredStudents.length === 0 ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: "150px",
+              padding: "2rem",
+              margin: "1rem 0",
+              border: "1px dashed #cbd9e6",
+              borderRadius: "8px",
+              backgroundColor: "#fbfdff",
+              textAlign: "center",
+              gap: "0.85rem",
+              boxSizing: "border-box",
+            }}
+          >
+            <p style={{ margin: 0, color: "#64788e", fontSize: "0.88rem" }}>
+              No students match the current filter ({filterRisk.toUpperCase()} risk).
+            </p>
+            <button
+              type="button"
+              className="action-button secondary"
+              style={{ fontSize: "0.78rem", padding: "6px 14px" }}
+              onClick={() => {
+                setFilterRisk("all");
+                setSearchTerm("");
+              }}
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
           <div className="tabular-student-container">

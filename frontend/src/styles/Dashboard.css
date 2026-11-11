@@ -834,16 +834,69 @@
 }
 
 .summary-card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.85rem;
   min-height: 94px;
   padding: 1rem 1.1rem;
   background: #fff;
-  border: 1px solid #e3ebf2;
+  border: 1.5px solid #e3ebf2;
   border-radius: 11px;
   box-shadow: 0 3px 12px rgba(16, 43, 74, 0.035);
   box-sizing: border-box;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease,
+              background-color 0.2s ease;
+}
+
+/* Clickable state for sorting filter cards */
+.summary-card.clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.summary-card.clickable:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(16, 43, 74, 0.08);
+}
+
+/* Outer Glow Effects when selected/clicked */
+.summary-card.active-filter.border-red {
+  border-color: #dc2626 !important;
+  background-color: #fff9f9;
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.25),
+              0 0 16px 2px rgba(220, 38, 38, 0.35),
+              0 10px 24px rgba(220, 38, 38, 0.15) !important;
+}
+
+.summary-card.active-filter.border-amber {
+  border-color: #ea580c !important;
+  background-color: #fffbf7;
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.25),
+              0 0 16px 2px rgba(234, 88, 12, 0.35),
+              0 10px 24px rgba(234, 88, 12, 0.15) !important;
+}
+
+.summary-card.active-filter.border-green {
+  border-color: #16a34a !important;
+  background-color: #f7fef9;
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.25),
+              0 0 16px 2px rgba(22, 163, 74, 0.35),
+              0 10px 24px rgba(22, 163, 74, 0.15) !important;
+}
+
+.summary-card.active-filter.border-blue {
+  border-color: #2563eb !important;
+  background-color: #f8fbff;
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25),
+              0 0 16px 2px rgba(37, 99, 235, 0.35),
+              0 10px 24px rgba(37, 99, 235, 0.15) !important;
 }
 
 .summary-card .card-icon {
@@ -994,78 +1047,6 @@
   color: #18324b;
   font-family: inherit;
   font-size: 0.8rem;
-}
-
-.caseload-controls .filter-select {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15rem;
-  padding: 0.2rem 0.6rem;
-  border: 1px solid #c6d6e5;
-  border-radius: 7px;
-  background: #fff;
-  color: #70869b;
-  transition: all 0.2s ease;
-  height: 38px;
-  box-sizing: border-box;
-}
-
-.caseload-controls .filter-select select {
-  border: 0;
-  padding: 0.38rem 0;
-  color: #29465f;
-  background: transparent;
-  outline: none;
-  font-size: 0.78rem;
-  font-family: inherit;
-  cursor: pointer;
-  text-align: center;
-  /* Adds inner spacing to pull text away from edges and arrow */
-  padding-right: 0.25rem;
-  
-  /* Ensures select expands naturally to text width */
-  width: auto;
-  min-width: 110px;
-}
-
-/* FORCE RISK FILTER ICON COLORS */
-div.caseload-controls .filter-select[data-risk="high"],
-div.caseload-controls .filter-select.risk-high {
-  border-color: #dc2626 !important;
-}
-
-div.caseload-controls .filter-select[data-risk="high"] svg,
-div.caseload-controls .filter-select[data-risk="high"] svg *,
-div.caseload-controls .filter-select.risk-high svg,
-div.caseload-controls .filter-select.risk-high svg * {
-  color: #dc2626 !important;
-  stroke: #dc2626 !important;
-}
-
-div.caseload-controls .filter-select[data-risk="medium"],
-div.caseload-controls .filter-select.risk-medium {
-  border-color: #ea580c !important;
-}
-
-div.caseload-controls .filter-select[data-risk="medium"] svg,
-div.caseload-controls .filter-select[data-risk="medium"] svg *,
-div.caseload-controls .filter-select.risk-medium svg,
-div.caseload-controls .filter-select.risk-medium svg * {
-  color: #ea580c !important;
-  stroke: #ea580c !important;
-}
-
-div.caseload-controls .filter-select[data-risk="low"],
-div.caseload-controls .filter-select.risk-low {
-  border-color: #16a34a !important;
-}
-
-div.caseload-controls .filter-select[data-risk="low"] svg,
-div.caseload-controls .filter-select[data-risk="low"] svg *,
-div.caseload-controls .filter-select.risk-low svg,
-div.caseload-controls .filter-select.risk-low svg * {
-  color: #16a34a !important;
-  stroke: #16a34a !important;
 }
 
 /* ==========================================================================
@@ -2456,11 +2437,6 @@ div.caseload-controls .filter-select.risk-low svg * {
 
   .caseload-controls .search-box {
     max-width: 100%;
-  }
-
-  .caseload-controls .filter-select { 
-    width: 100%;
-    justify-content: space-between; 
   }
 
   .history-timeline-item {
