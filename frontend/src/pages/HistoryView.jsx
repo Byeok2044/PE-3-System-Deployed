@@ -4,20 +4,25 @@ import {
   AlertTriangle,
   BarChart3,
   CheckCircle2,
+  ChevronDown,
+  Clock,
   FilePenLine,
   FilePlus2,
+  Filter,
   History as HistoryIcon,
+  ShieldCheck,
   Trash2,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import useAdaptivePolling from "../hooks/useAdaptivePolling";
 import "../styles/AcademicWorkspace.css";
+import "../styles/Dashboard.css";
 
 const eventCopy = {
-  record_created: { label: "Personal Information Created", icon: FilePlus2 },
-  record_updated: { label: "Personal Information Updated", icon: FilePenLine },
-  forecast_run: { label: "Forecast Prediction run", icon: BarChart3 },
-  insight_generated: { label: "Support Suggestions Generated", icon: Activity },
+  record_created: { label: "Personal Information Created", icon: FilePlus2, color: "blue" },
+  record_updated: { label: "Personal Information Updated", icon: FilePenLine, color: "blue" },
+  forecast_run: { label: "Forecast Prediction Run", icon: BarChart3, color: "purple" },
+  insight_generated: { label: "Support Suggestions Generated", icon: Activity, color: "emerald" },
 };
 
 const formatDate = (value) => {
@@ -66,13 +71,16 @@ export default function HistoryView({ user }) {
   useAdaptivePolling(async () => {
     try {
       const [historyResponse, auditResponse] = await Promise.all([
-        apiFetch("/api/students/me/history"), apiFetch("/api/students/me/academic-audit"),
+        apiFetch("/api/students/me/history"),
+        apiFetch("/api/students/me/academic-audit"),
       ]);
       if (!historyResponse.ok || !auditResponse.ok) throw new Error("Could not load your history.");
       const [history, audit] = await Promise.all([historyResponse.json(), auditResponse.json()]);
       setState({ loading: false, error: "", activities: history.activities || [] });
       setAcademicAudit(audit.entries || []);
-    } catch (error) { setState(current => ({ ...current, loading: false, error: error.message })); }
+    } catch (error) {
+      setState((current) => ({ ...current, loading: false, error: error.message }));
+    }
   }, { intervalMs: 15000, enabled: user?.role === "student" });
 
   if (user?.role !== "student") {
@@ -80,7 +88,7 @@ export default function HistoryView({ user }) {
       <section className="workspace-section" id="history">
         <div className="section-heading">
           <div>
-            <p className="dashboard-eyebrow">Forecast history</p>
+            <span className="dashboard-eyebrow">Forecast history</span>
             <h2>Cohort Timeline & Audits</h2>
           </div>
         </div>
@@ -92,228 +100,278 @@ export default function HistoryView({ user }) {
   }
 
   if (state.loading) {
-    return <p className="student-data-loading">Loading your timeline history…</p>;
+    return <p className="connected-students-loading">Loading your timeline history…</p>;
   }
 
   const filteredActivities = state.activities.filter((entry) => {
     if (selectedFilter === "all") return true;
     if (selectedFilter === "system_event") {
-      // Handles unknown or explicit system_event types
       return !eventCopy[entry.type] || entry.type === "system_event";
     }
     return entry.type === selectedFilter;
   });
 
   return (
-    <section className="workspace-section" id="history">
-      <div className="section-heading"
-        style={{ 
-          display: "flex", 
-          alignItems: "center", 
-          justifyContent: "space-between", 
-          width: "100%" 
-        }}
-      >
-        <div>
-          <p className="dashboard-eyebrow">Your Activity</p>
-          <h2>Record & Forecast Timeline</h2>
-        </div>
+    <div className="history-page-wrapper">
+      {/* Intro Header */}
+      <section className="dashboard-intro">
+        <span className="dashboard-eyebrow">Your Activity</span>
+        <h1>Record & Forecast Timeline</h1>
+        <p>
+          Trace changes made to your academic record, past attrition forecasts, and official professor audits.
+        </p>
+      </section>
 
-        {/* --- START OF NEW FILTER CONTROL --- */}
-        <div className="caseload-controls" 
-          style={{ 
-            margin: 0, 
-            width: "auto",      /* Overrides width: 100% from dashboard.css */
-            flex: "none",        /* Prevents flexbox from stretching the element */
-            marginLeft: "auto",  /* Forces it to the far right */
-            display: "flex", 
-              alignItems: "center"
-          }}
-        >
-          <div className="filter-select">
+      {/* Unified Toolbar & Filter Section */}
+      <div className="history-control-card">
+        <div className="history-control-header">
+          <div className="history-control-title">
+            <Filter size={16} className="history-icon-primary" />
+            <span>Activity Filters</span>
+          </div>
+
+          <div className="history-filter-field">
             <select
+              className="history-select"
               value={selectedFilter}
               onChange={(e) => setSelectedFilter(e.target.value)}
               aria-label="Filter events by type"
             >
-              <option value="all">All Events</option>
+              <option value="all">All Events ({state.activities.length})</option>
               <option value="record_created">Personal Information Created</option>
               <option value="record_updated">Personal Information Updated</option>
-              <option value="forecast_run">Forecast Prediction Run</option>
-              <option value="insight_generated">Support Suggestions Generated</option>
-              <option value="system_event">System Event</option>
+              <option value="forecast_run">Forecast Prediction Runs</option>
+              <option value="insight_generated">Support Suggestions</option>
+              <option value="system_event">System Events</option>
             </select>
+            <ChevronDown size={14} className="history-select-arrow" />
           </div>
         </div>
+
+        {/* Embedded Protected Audit Dropdown */}
+        <details className="history-embedded-audit">
+          <summary className="history-embedded-audit__summary">
+            <div className="history-audit-left">
+              <ShieldCheck size={16} className="history-icon-shield" />
+              <span>Academic Record Audit (Protected Official History)</span>
+            </div>
+            <span className="history-audit-pill">{academicAudit.length} Records</span>
+          </summary>
+
+          <div className="history-embedded-audit__content">
+            <p className="history-audit-note">
+              Professor uploads, corrections, and provider changes are retained independently of your personal log.
+            </p>
+
+            {academicAudit.length ? (
+              <div className="history-audit-items">
+                {academicAudit.map((entry) => (
+                  <div key={entry._id} className="history-audit-row">
+                    <div className="history-audit-row__header">
+                      <span className="audit-type-tag">{entry.action.replaceAll("_", " ")}</span>
+                      <time>{formatDate(entry.createdAt)}</time>
+                    </div>
+
+                    <p className="history-audit-row__detail">
+                      By <strong>{entry.actor?.fullName || "Account unavailable"}</strong>
+                      {entry.after && (
+                        <span>
+                          {" "}· AY {entry.after.academicYear}, Sem {entry.after.semester} (v{entry.after.academicVersion})
+                        </span>
+                      )}
+                    </p>
+
+                    {entry.reason && (
+                      <p className="history-audit-row__reason">
+                        <em>Reason:</em> {entry.reason}
+                      </p>
+                    )}
+
+                    {(entry.before?.previousSemesterGrade !== undefined || entry.after?.previousSemesterGrade !== undefined) && (
+                      <div className="history-audit-row__diff">
+                        {entry.before?.previousSemesterGrade !== undefined && (
+                          <div className="audit-diff-col before">
+                            <small>Prior Value</small>
+                            <strong>{entry.before.previousSemesterGrade} / {entry.before.gradeMaximum}</strong>
+                            <span>{entry.before.previousSemesterUnitsApproved} / {entry.before.previousSemesterUnitsEnrolled} Units</span>
+                          </div>
+                        )}
+                        {entry.after?.previousSemesterGrade !== undefined && (
+                          <div className="audit-diff-col after">
+                            <small>Updated Record</small>
+                            <strong>{entry.after.previousSemesterGrade} / {entry.after.gradeMaximum}</strong>
+                            <span>{entry.after.previousSemesterUnitsApproved} / {entry.after.previousSemesterUnitsEnrolled} Units</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="history-audit-empty">No professor-managed academic events logged yet.</p>
+            )}
+          </div>
+        </details>
       </div>
 
-      <details className="academic-audit"><summary>Academic record audit (protected)</summary>
-        <p>Professor uploads, corrections, and provider changes are retained independently of your activity history.</p>
-        {academicAudit.length ? <ul>{academicAudit.map(entry => <li key={entry._id}>
-          <strong>{entry.action.replaceAll("_", " ")}</strong> · {entry.actor?.fullName || "Account unavailable"} · {formatDate(entry.createdAt)}
-          {entry.after && <span> · {entry.after.academicYear}, semester {entry.after.semester} · version {entry.after.academicVersion}</span>}
-          {entry.reason && <p>{entry.reason}</p>}
-          {entry.before?.previousSemesterGrade !== undefined && <p>Before: {entry.before.previousSemesterGrade}/{entry.before.gradeMaximum}, {entry.before.previousSemesterUnitsApproved}/{entry.before.previousSemesterUnitsEnrolled} units</p>}
-          {entry.after?.previousSemesterGrade !== undefined && <p>After: {entry.after.previousSemesterGrade}/{entry.after.gradeMaximum}, {entry.after.previousSemesterUnitsApproved}/{entry.after.previousSemesterUnitsEnrolled} units</p>}
-        </li>)}</ul> : <p>No professor-managed academic events yet.</p>}
-      </details>
       {state.error && (
         <div className="login-alert" role="alert">
-          {state.error}
+          <AlertTriangle size={16} />
+          <p>{state.error}</p>
         </div>
       )}
 
-      {!state.error && state.activities.length === 0 ? (
-        <div
-          className="empty-state"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "100%",
-            minHeight: "220px",
-            padding: "2rem 1.5rem",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "1.25rem",
-              maxWidth: "540px",
-            }}
-          >
-            <div
-              className="empty-illustration"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <HistoryIcon size={32} />
+      {/* Main Activity Timeline Section */}
+      <section className="workspace-section history-timeline-panel">
+        <div className="section-heading">
+          <div>
+            <span className="dashboard-eyebrow">Logged Activities</span>
+            <h2>Activity Feed</h2>
+          </div>
+          <span className="history-counter-chip">
+            Showing {filteredActivities.length} of {state.activities.length}
+          </span>
+        </div>
+
+        {!state.error && filteredActivities.length === 0 ? (
+          <div className="empty-state" style={{ minHeight: "180px" }}>
+            <div className="empty-illustration">
+              <HistoryIcon size={26} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: "1.1rem" }}>No activity logged yet</h3>
-              <p style={{ margin: "0.35rem 0 0 0", lineHeight: 1.5 }}>
-                Save your personal information or run a forecast after your professor uploads your academic record.
+              <h3>No activity logged for this filter</h3>
+              <p>
+                Save your personal information or generate a retention forecast to review entries on your timeline.
               </p>
             </div>
           </div>
-        </div>
-      ) : (
-        <ul className="history-timeline history-timeline--live">
-          {filteredActivities.map((entry) => {
-            const details = eventCopy[entry.type] || {
-              label: "System Event",
-              icon: Activity,
-            };
-            const Icon = details.icon;
-            const forecast = entry.forecast;
-            // Legacy forecast snapshots used studySchedule; saved records and
-            // new forecasts use attendance. Read either so old history is
-            // displayed correctly as well.
-            const attendance = entry.record?.attendance || entry.record?.studySchedule;
-            const isHighRisk =
-              forecast && Math.round((forecast.dropoutProbability || 0) * 100) > 50;
+        ) : (
+          <ul className="history-timeline-list">
+            {filteredActivities.map((entry) => {
+              const details = eventCopy[entry.type] || {
+                label: "System Event",
+                icon: Activity,
+                color: "blue",
+              };
+              const Icon = details.icon;
+              const forecast = entry.forecast;
+              const attendance = entry.record?.attendance || entry.record?.studySchedule;
+              const isHighRisk =
+                forecast && Math.round((forecast.dropoutProbability || 0) * 100) > 40;
 
-            return (
-              <li key={entry.id || entry._id} className="history-timeline-item">
-                <span className="history-timeline-icon">
-                  <Icon size={16} />
-                </span>
-
-                <div className="history-timeline-body">
-                  <div className="history-timeline-main">
-                    <strong>{details.label}</strong>
-                    <time>{formatDate(entry.createdAt)}</time>
-                    {(entry.forecast || entry.insight) && <small>{entry.freshness === "current" ? "Current inputs" : entry.freshness === "legacy" ? "Historical · legacy inputs" : "Historical · outdated inputs"}{entry.record?.academicVersion !== undefined ? " · Academic version " + entry.record.academicVersion : ""}</small>}
+              return (
+                <li key={entry.id || entry._id} className="history-card-item">
+                  <div className={`history-card-icon ${details.color}`}>
+                    <Icon size={18} />
                   </div>
 
-                  {entry.record?.previousSemesterGrade !== undefined && (
-                    <div className="history-timeline-record-meta">
-                      <span>
-                        Previous Grade:{" "}
-                        <strong>
-                          {entry.record.previousSemesterGrade} / {entry.record.gradeMaximum ?? "Not recorded"}
-                        </strong>
-                      </span>
-                      <span>
-                        Units Approved:{" "}
-                        <strong>
-                          {entry.record.previousSemesterUnitsApproved} of {entry.record.previousSemesterUnitsEnrolled}
-                        </strong>
-                      </span>
-                      <span>
-                        Schedule:{" "}
-                          <strong>{attendance === "day" ? "Daytime" : attendance === "night" ? "Evening" : "Not recorded"}</strong>
-                      </span>
+                  <div className="history-card-content">
+                    <div className="history-card-header">
+                      <h4 className="history-card-title">{details.label}</h4>
+                      <time className="history-timestamp">
+                        <Clock size={12} /> {formatDate(entry.createdAt)}
+                      </time>
+                      {(entry.forecast || entry.insight) && (
+                        <span className="history-status-tag">
+                          {entry.freshness === "current"
+                            ? "Current inputs"
+                            : entry.freshness === "legacy"
+                            ? "Legacy inputs"
+                            : "Outdated inputs"}
+                          {entry.record?.academicVersion !== undefined
+                            ? ` · v${entry.record.academicVersion}`
+                            : ""}
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                {forecast && (
-                  <div className="history-timeline-value">
-                    <span className="forecast-metric-badge">
-                      Proj. Grade: {forecast.predictedNextSemesterGrade} / {forecast.gradeMaximum ?? "Not recorded"}
-                    </span>
-                    <span
-                      className={`forecast-risk-tag ${isHighRisk ? "risk-high" : "risk-low"}`}
-                    >
-                      {isHighRisk ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} />}
-                      {Math.round((forecast.dropoutProbability || 0) * 100)}% Attrition Risk
-                    </span>
+                    {entry.record?.previousSemesterGrade !== undefined && (
+                      <div className="history-metrics-row">
+                        <span className="history-metric">
+                          Grade: <strong>{entry.record.previousSemesterGrade} / {entry.record.gradeMaximum ?? "—"}</strong>
+                        </span>
+                        <span className="history-metric">
+                          Units: <strong>{entry.record.previousSemesterUnitsApproved} / {entry.record.previousSemesterUnitsEnrolled}</strong>
+                        </span>
+                        <span className="history-metric">
+                          Schedule:{" "}
+                          <strong>
+                            {attendance === "day"
+                              ? "Daytime"
+                              : attendance === "night"
+                              ? "Evening"
+                              : "Not recorded"}
+                          </strong>
+                        </span>
+                      </div>
+                    )}
                   </div>
-                )}
-                <button
-                  type="button"
-                  className="history-delete-button"
-                  onClick={() => setEntryPendingDeletion(entry)}
-                  disabled={entry.type === "risk_alert_sent" || deletingId === (entry.id || entry._id)}
-                  aria-label={`Delete ${details.label.toLowerCase()} from history`}
-                >
-                  <Trash2 size={15} />
-                  {deletingId === (entry.id || entry._id) ? "Deleting…" : "Delete"}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
 
+                  <div className="history-card-actions">
+                    {forecast && (
+                      <div className="history-forecast-stat">
+                        <span className="forecast-val">
+                          Proj. Grade: <strong>{forecast.predictedNextSemesterGrade} / {forecast.gradeMaximum ?? "—"}</strong>
+                        </span>
+                        <span className={`forecast-pill ${isHighRisk ? "high" : "low"}`}>
+                          {isHighRisk ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} />}
+                          {Math.round((forecast.dropoutProbability || 0) * 100)}% Dropout Risk
+                        </span>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className="history-delete-btn"
+                      onClick={() => setEntryPendingDeletion(entry)}
+                      disabled={entry.type === "risk_alert_sent" || deletingId === (entry.id || entry._id)}
+                      aria-label={`Delete ${details.label.toLowerCase()} from history`}
+                      title="Delete activity record"
+                    >
+                      <Trash2 size={14} />
+                      <span>{deletingId === (entry.id || entry._id) ? "Deleting…" : "Delete"}</span>
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {/* Delete Confirmation Modal */}
       {entryPendingDeletion && (
-        <div className="history-delete-warning" role="dialog" aria-modal="true" aria-labelledby="history-delete-warning-title">
-          <div className="history-delete-warning__card">
-            <AlertTriangle size={23} aria-hidden="true" />
-            <div>
-              <h3 id="history-delete-warning-title">Delete this history entry?</h3>
-              <p>
-                This permanently removes the selected activity from your history. It cannot be restored.
-              </p>
+        <div className="risk-pop-backdrop" role="dialog" aria-modal="true" onClick={() => setEntryPendingDeletion(null)}>
+          <div className="risk-pop-modal border-red" onClick={(e) => e.stopPropagation()}>
+            <div className="risk-pop-icon red">
+              <Trash2 size={24} />
             </div>
-            <div className="history-delete-warning__actions">
+            <h3>Delete history entry?</h3>
+            <p>
+              This permanently removes the selected activity from your timeline record. This action cannot be reversed.
+            </p>
+            <div className="risk-pop-actions">
               <button
                 type="button"
-                className="history-delete-cancel"
-                onClick={() => setEntryPendingDeletion(null)}
-                disabled={Boolean(deletingId)}
-              >
-                Keep entry
-              </button>
-              <button
-                type="button"
-                className="history-delete-confirm"
+                className="risk-pop-action-btn red"
                 onClick={deleteEntry}
                 disabled={Boolean(deletingId)}
               >
-                <Trash2 size={15} />
-                {deletingId ? "Deleting…" : "Delete permanently"}
+                {deletingId ? "Deleting Record…" : "Delete Permanently"}
+              </button>
+              <button
+                type="button"
+                className="risk-pop-dismiss-btn"
+                onClick={() => setEntryPendingDeletion(null)}
+                disabled={Boolean(deletingId)}
+              >
+                Keep Entry
               </button>
             </div>
           </div>
         </div>
       )}
-    </section>
+    </div>
   );
 }
