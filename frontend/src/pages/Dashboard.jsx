@@ -38,6 +38,7 @@ import MessageCenter from "../components/MessageCenter.jsx";
 import Profile from './Profile.jsx';
 import useAdaptivePolling from "../hooks/useAdaptivePolling.js";
 import ProfessorDashboardView from "./ProfessorDashboardView.jsx";
+import ProfessorHistoryView from "./ProfessorHistoryView.jsx";
 
 // Route-aware count-up hook
 function useCountUp(target, triggerKey, duration = 1200) {
@@ -755,7 +756,7 @@ export default function Dashboard() {
             </DashboardNavLink>
           )}
 
-          {user?.role !== "professor" && user?.role !== "administrator" && (
+          {user?.role !== "administrator" && (
             <DashboardNavLink tab="history" currentTab={activeTab}>
               <HistoryIcon size={18} /> History
             </DashboardNavLink>
@@ -853,7 +854,7 @@ export default function Dashboard() {
             </DashboardNavLink>
           )}
 
-          {user?.role !== "professor" && user?.role !== "administrator" && (
+          {user?.role !== "administrator" && (
             <DashboardNavLink tab="history" currentTab={activeTab}>History</DashboardNavLink>
           )}
         </nav>
@@ -1112,7 +1113,8 @@ export default function Dashboard() {
           <StudentInsights onForecastComplete={handleForecastCompleted} latestForecast={latestForecast} />
         )}
 
-        {activeTab === "history" && (
+        {user?.role === "professor" && activeTab === "history" && <ProfessorHistoryView />}
+        {user?.role !== "professor" && activeTab === "history" && (
           <HistoryView user={user} nextStep={nextStep} />
         )}
       </main>

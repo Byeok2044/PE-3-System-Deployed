@@ -19,6 +19,7 @@ const schema = new mongoose.Schema({
   importBatch: { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicImportBatch', required: published },
   uploadedAt: { type: Date, required: published },
   academicVersion: { type: Number, default: 0 },
+  historyReadRevision: { type: Number, default: 0 },
 }, { timestamps: true });
 schema.index({ student: 1, institutionKey: 1, academicYear: 1, semester: 1 }, { unique: true });
 schema.pre('validate', function (next) {

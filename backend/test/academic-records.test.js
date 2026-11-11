@@ -123,7 +123,7 @@ function confirmationFixtures({ status = 'preview', expired = false, changed = f
   const session = { withTransaction: async callback => callback(), endSession: async () => {} };
   stub(mongoose, 'startSession', async () => session);
   const batch = { _id: id(5), institutionKey: 'school a', professor: professor._id, status, correctionReason: '', expiresAt: new Date(Date.now() + (expired ? -1000 : 60000)),
-    rows: [{ student: student._id, recordId: id(3), expectedVersion: 0, rowNumber: 2, action: 'new', after: { previousSemesterGrade: 2.25, gradeMaximum: 5, previousSemesterUnitsEnrolled: 24, previousSemesterUnitsApproved: 21, attendance: 'day' } }],
+    rows: [{ student: student._id, recordId: id(3), expectedVersion: 0, rowNumber: 2, action: 'new', values: { academicYear: '2025-2026', semester: 2 }, after: { previousSemesterGrade: 2.25, gradeMaximum: 5, previousSemesterUnitsEnrolled: 24, previousSemesterUnitsApproved: 21, attendance: 'day' } }],
     result: { created: 1 }, save: async options => { assert.equal(options.session, session); } };
   stub(Batch, 'findOne', () => query(batch));
   stub(User, 'findOneAndUpdate', async filter => filter.role === 'student' ? student : professor);

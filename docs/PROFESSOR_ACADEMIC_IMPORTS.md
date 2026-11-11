@@ -120,3 +120,36 @@ the backend so old clients do not keep submitting protected fields.
 
 The migration deliberately does not create authoritative academic records.
 Professors must import the real source records after provider designation.
+
+## Professor History
+
+Professors have a History tab on desktop and mobile. It includes five event
+categories: confirmed CSV imports, academic corrections, accepted/declined/removed
+connections, provider transfers, and student-generated forecasts. Expand an event
+to see its actor, timestamp, source period, counts, changed values, reason, or
+saved forecast metrics and academic version. Search by student name/email or batch
+ID and filter by event category, source year/semester, and inclusive UTC+8 dates.
+Cursor pagination keeps equally timestamped events ordered across the sources.
+Visible history refreshes every 15 seconds and when the tab regains focus.
+
+Existing committed batches and academic revisions are displayed directly; there
+is no duplicate import/correction log or fabricated backfill. Existing retained
+student forecasts can be shown for currently accepted same-institution students
+from the connection's creation date. Missing historical periods/versions display
+as not recorded. Previously deleted connection transitions cannot be recovered.
+
+New connection changes and professor-visible forecasts are stored in a separate
+ProfessorHistoryEvent collection. Connection changes and their audit entries
+commit together. New student forecasts and their professor snapshots also commit
+together, with academic/profile/connection guards. Student history deletion does
+not remove these professor snapshots. Old activity rows marked as already copied
+are excluded from the fallback source, avoiding duplicate forecast entries.
+
+Professor history has no edit/delete endpoint. Queries always scope to the signed-in
+professor and current institution. After disconnection, own activity metadata is
+retained, but student correction/forecast values are restricted. Forecast entries
+are saved snapshots, not automatically refreshed predictions. Provider transfer
+cancellation is recorded explicitly; older cancellation revisions are recognized
+from their existing reason field. No new dependencies or model retraining are
+needed. Restart both services to load the routes and navigation; the migration's
+apply mode also creates the new history collection/indexes when needed.

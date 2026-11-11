@@ -25,12 +25,15 @@ async function transaction(callback) {
 // These writes conflict with connection deletion and institution/profile changes.
 // Reading permissions alone inside a transaction would leave a write-skew race.
 async function guardParticipants(studentId, professorId, key, session) {
+  const participants = {};
   for (const [id, role] of [[studentId, 'student'], [professorId, 'professor']]) {
     const user = await User.findOneAndUpdate({ _id: id, role, emailVerified: true }, { $inc: { academicAccessRevision: 1 } }, { new: true, session });
     if (!user || !key || institutionKey(user.institution) !== key) throw fail('The student and professor must be verified accounts at the same institution.', 403);
+    participants[role] = user;
   }
   const connection = await Connection.findOneAndUpdate({ student: studentId, professor: professorId, status: 'accepted' }, { $inc: { academicAccessRevision: 1 } }, { new: true, session });
   if (!connection) throw fail('An accepted professor connection is required.', 403);
+  return { ...participants, connection };
 }
 
 exports.template = (req, res, next) => {
@@ -112,10 +115,14 @@ exports.confirm = async (req, res, next) => {
           importBatch: batch._id, uploadedAt: new Date(), academicVersion: existing.academicVersion + 1 });
         await existing.save({ session });
         await Revision.create([{ academicRecord: existing._id, student: row.student, actor: req.user._id, importBatch: batch._id,
+          actorName: req.user.fullName, studentName: row.studentName,
           action: row.action === 'new' ? 'uploaded' : 'corrected', reason: batch.correctionReason, before, after: existing.toObject() }], { session });
         counts[row.action === 'new' ? 'created' : 'corrected']++;
       }
       batch.status = 'committed'; batch.committedAt = new Date(); batch.result = { ...counts, batchId: String(batch._id), message: 'Academic records imported successfully.' };
+      batch.professorName = req.user.fullName;
+      batch.academicYear = batch.rows[0]?.values?.academicYear;
+      batch.semester = batch.rows[0]?.values?.semester;
       await batch.save({ session });
       return batch.result;
     });
@@ -166,20 +173,27 @@ exports.transferProvider = async (req, res, next) => {
       const isRecipient = String(record.pendingProvider) === String(req.user._id);
       if ((action === 'accept' && !isRecipient) || (action !== 'accept' && !isOwner)) throw fail('You are not authorized to transfer this record.', 403);
       const before = record.toObject();
-      await guardParticipants(record.student, record.provider, record.institutionKey, session);
+      const previous = await guardParticipants(record.student, record.provider, record.institutionKey, session);
+      let receiving;
       if (action === 'request') {
         requireId(professorId);
         if (String(professorId) === String(record.provider)) throw fail('Choose a different connected professor.');
-        await guardParticipants(record.student, professorId, record.institutionKey, session);
+        receiving = (await guardParticipants(record.student, professorId, record.institutionKey, session)).professor;
         record.pendingProvider = professorId;
       } else if (action === 'accept') {
-        await guardParticipants(record.student, req.user._id, record.institutionKey, session);
+        receiving = (await guardParticipants(record.student, req.user._id, record.institutionKey, session)).professor;
         record.provider = req.user._id; record.pendingProvider = null;
-      } else record.pendingProvider = null;
+      } else {
+        if (!record.pendingProvider) throw fail('There is no pending transfer to cancel.', 409);
+        receiving = await User.findById(record.pendingProvider).select('fullName').session(session);
+        record.pendingProvider = null;
+      }
       record.academicVersion++;
       await record.save({ session });
       await Revision.create([{ academicRecord: record._id, student: record.student, actor: req.user._id,
-        action: action === 'accept' ? 'provider_transferred' : 'transfer_requested', reason: action,
+        actorName: req.user.fullName, studentName: previous.student.fullName,
+        previousProviderName: previous.professor.fullName, receivingProviderName: receiving?.fullName,
+        action: action === 'accept' ? 'provider_transferred' : action === 'cancel' ? 'transfer_cancelled' : 'transfer_requested', reason: action,
         before, after: record.toObject() }], { session });
     });
     res.json({ message: action === 'accept' ? 'Academic provider transferred.' : action === 'cancel' ? 'Transfer cancelled.' : 'Transfer offered. The receiving professor must accept.' });

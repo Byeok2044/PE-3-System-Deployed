@@ -166,6 +166,7 @@ test('prediction route saves the forecast and notifies professors while email fa
   stub(User, 'findById', async id => id === student._id ? student : professor(id));
   stub(Connection, 'exists', async () => true);
   stub(workspaceService, 'loadWorkspace', async () => ({ canForecast: true, inputVersion: 'version', profile: { profileVersion: 1 }, record: { attendance: 'day', previousSemesterGrade: 10, academicRecordId: 'academic', academicVersion: 1 } }));
+  stub(require('../src/utils/professorHistory'), 'saveForecastActivity', async (user, workspace, result) => StudentActivity.create({ student: user._id, type: 'forecast_run', record: workspace.record, forecast: result }));
   const router = require('../src/routes/mlRoutes');
   const predict = router.stack.find((layer) => layer.route?.path === '/predict').route.stack.at(-1).handle;
   stub(axios, 'post', async (url, payload) => {

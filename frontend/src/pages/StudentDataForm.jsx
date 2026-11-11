@@ -80,7 +80,6 @@ export default function StudentDataForm({ onSaveRecord }) {
       </dl>}
       <p className="academic-help">Your professor supplies academic information through CSV. For corrections, contact your academic provider through Messages.</p>
       {workspace.hasOutdatedForecast && <p className="academic-notice">Your previous forecast is historical. Run a new forecast after your record is ready.</p>}
-      {workspace.legacyRecord && <details><summary>Previous self-reported record</summary><p>This legacy record is historical and cannot be used for new forecasts: {workspace.legacyRecord.previousSemesterGrade} / {workspace.legacyRecord.gradeMaximum}. Ask your professor to upload the authoritative record.</p></details>}
     </section>
     <section className="academic-panel">
       <h3>Academic Record Provider</h3>

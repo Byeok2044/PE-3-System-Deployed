@@ -11,6 +11,7 @@ const studentActivitySchema = new mongoose.Schema(
     academicVersion: Number,
     profileVersion: Number,
     legacySource: String,
+    professorHistoryRecorded: { type: Boolean, default: false },
     record: { type: mongoose.Schema.Types.Mixed },
     forecast: { type: mongoose.Schema.Types.Mixed },
     insight: { type: mongoose.Schema.Types.Mixed },

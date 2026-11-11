@@ -6,6 +6,7 @@ const imports = require('../controllers/academicImportController');
 const router = express.Router();
 router.use(protect);
 router.get('/students', listConnectedStudentWorkspace);
+router.get('/history', require('../controllers/professorHistoryController').getProfessorHistory);
 router.get('/academic-imports/template', imports.template);
 router.post('/academic-imports/preview', express.text({ type: 'text/csv', limit: '1mb', defaultCharset: 'utf-8' }), imports.preview);
 router.post('/academic-imports/:id/confirm', imports.confirm);
