@@ -12,9 +12,9 @@ export const READINESS_MESSAGES = {
   ready: "Your academic record and personal information are ready for forecasting.",
 };
 const FIELDS = [
-  ["educationalSpecialNeeds", "Educational support needs"],
-  ["tuitionFeeStatus", "Tuition fees up to date"],
-  ["scholarshipStatus", "Active scholarship"],
+  ["educationalSpecialNeeds", "Educational Support Needs"],
+  ["tuitionFeeStatus", "Tuition Fees Up to Date"],
+  ["scholarshipStatus", "Active Scholarship"],
 ];
 const emptyProfile = { educationalSpecialNeeds: "", tuitionFeeStatus: "", scholarshipStatus: "" };
 const asForm = profile => Object.fromEntries(FIELDS.map(([key]) => [key, typeof profile?.[key] === "boolean" ? String(profile[key]) : ""]));
@@ -68,9 +68,9 @@ export default function StudentDataForm({ onSaveRecord }) {
     {error && <p className="academic-notice academic-notice--error" role="alert">{error}</p>}
     {message && <p className="academic-notice" role="status">{message}</p>}
     <section className="academic-panel">
-      <div className="academic-panel-heading"><div><p className="dashboard-eyebrow">Professor-managed</p><h3>Your academic record</h3></div><span className="academic-source-badge">{record ? "Professor CSV" : "Awaiting record"}</span></div>
+      <div className="academic-panel-heading"><div><p className="dashboard-eyebrow">Professor-managed</p><h2>Your Academic Record</h2></div><span className="academic-source-badge">{record ? "Record Uploaded" : "Awaiting Record"}</span></div>
       <p role="status">{READINESS_MESSAGES[workspace.readiness]}</p>
-      {academic && <p className="academic-provenance">Source semester: <strong>{academic.academicYear}, semester {academic.semester}</strong><br />Academic provider: {academic.provider?.fullName || "Unavailable"}
+      {academic && <p className="academic-provenance">Source Semester: <strong>{academic.academicYear}, Semester {academic.semester}</strong><br />Academic Provider: {academic.provider?.fullName || "Unavailable"}
         {academic.uploadedAt && <><br />Uploaded by {academic.uploadedBy?.fullName || "your professor"} on {new Date(academic.uploadedAt).toLocaleString()} · Version {academic.academicVersion}</>}</p>}
       {record && <dl className="academic-values">
         <div><dt>Previous semester GWA / grade</dt><dd>{record.previousSemesterGrade} / {record.gradeMaximum}</dd></div>
@@ -83,20 +83,20 @@ export default function StudentDataForm({ onSaveRecord }) {
       {workspace.legacyRecord && <details><summary>Previous self-reported record</summary><p>This legacy record is historical and cannot be used for new forecasts: {workspace.legacyRecord.previousSemesterGrade} / {workspace.legacyRecord.gradeMaximum}. Ask your professor to upload the authoritative record.</p></details>}
     </section>
     <section className="academic-panel">
-      <h3>Academic-record provider</h3>
+      <h3>Academic Record Provider</h3>
       <p>Select the source semester your professor will upload. This does not let you edit academic values. A published period's provider can only be changed through a professor-to-professor transfer.</p>
       {workspace.providers.length > 0 ? <form className="academic-form" onSubmit={designate}>
-        <label>Source academic year<input required pattern="[0-9]{4}-[0-9]{4}" placeholder="2025-2026" value={period.academicYear} onChange={event => setPeriod({ ...period, academicYear: event.target.value })} /></label>
-        <label>Source semester<select value={period.semester} onChange={event => setPeriod({ ...period, semester: event.target.value })}><option value="1">Semester 1</option><option value="2">Semester 2</option></select></label>
-        <label>Connected professor<select required value={period.professorId} onChange={event => setPeriod({ ...period, professorId: event.target.value })}><option value="">Choose a professor</option>{workspace.providers.map(provider => <option key={provider.id} value={provider.id}>{provider.fullName}</option>)}</select></label>
-        <button className="dashboard-action" disabled={busy}>Designate provider</button>
+        <label>Source Academic Year<input required pattern="[0-9]{4}-[0-9]{4}" placeholder="2025-2026" value={period.academicYear} onChange={event => setPeriod({ ...period, academicYear: event.target.value })} /></label>
+        <label>Source Semester<select value={period.semester} onChange={event => setPeriod({ ...period, semester: event.target.value })}><option value="1">Semester 1</option><option value="2">Semester 2</option></select></label>
+        <label>Connected Professor<select required value={period.professorId} onChange={event => setPeriod({ ...period, professorId: event.target.value })}><option value="">Choose a professor</option>{workspace.providers.map(provider => <option key={provider.id} value={provider.id}>{provider.fullName}</option>)}</select></label>
+        <button className="dashboard-action" disabled={busy}>Designate Provider</button>
       </form> : <p>Open Connections to connect with a professor first.</p>}
-      {workspace.academicPeriods.length > 0 && <p className="academic-help">Records: {workspace.academicPeriods.map(item => item.academicYear + " semester " + item.semester + " (" + item.status.replace("_", " ") + ")").join("; ")}. Your latest source semester is used for forecasting.</p>}
+      {workspace.academicPeriods.length > 0 && <p className="academic-help">Records: {workspace.academicPeriods.map(item => item.academicYear + ", Semester " + item.semester + " (" + item.status.replace("_", " ") + ")").join("; ")}. Your latest source semester is used for forecasting.</p>}
     </section>
     <section className="academic-panel">
-      <h3>Your personal information</h3><p>You can save this information while waiting for your professor's upload.</p>
+      <h3>Your Personal Information</h3><p>You can save this information while waiting for your professor's upload.</p>
       <form className="academic-form" onSubmit={saveProfile}>{FIELDS.map(([key, label]) => <label key={key}>{label}<select required disabled={busy} value={form[key]} onChange={event => { dirty.current = true; setForm({ ...form, [key]: event.target.value }); }}><option value="">Select an answer</option><option value="true">Yes</option><option value="false">No</option></select></label>)}
-        <button className="dashboard-action" disabled={busy}>{busy ? "Saving..." : "Save personal information"}</button>
+        <button className="dashboard-action" disabled={busy}>{busy ? "Saving..." : "Save Personal Information"}</button>
       </form>
     </section>
   </div>;

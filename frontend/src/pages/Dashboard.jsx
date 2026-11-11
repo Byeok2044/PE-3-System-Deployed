@@ -1077,7 +1077,7 @@ export default function Dashboard() {
             <div className="section-heading">
               <div>
                 <p className="dashboard-eyebrow">Your data</p>
-                <h2>Your academic record and personal information</h2>
+                <h2>Academic Record and Personal Information</h2>
               </div>
             </div>
             <p className="dashboard-subtext">
