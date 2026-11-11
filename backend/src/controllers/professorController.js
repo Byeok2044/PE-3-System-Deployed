@@ -1,48 +1,21 @@
-const StudentProfessorConnection = require('../models/StudentProfessorConnection');
-const StudentRecord = require('../models/StudentRecord');
-const StudentActivity = require('../models/StudentActivity');
+const Connection = require('../models/StudentProfessorConnection');
 const { sameInstitution } = require('../utils/institutionAccess');
-
-const ensureProfessor = (req, res) => {
-  if (req.user.role === 'professor') return true;
-  res.status(403).json({ message: 'Only professors can access this workspace.' });
-  return false;
-};
-
-const publicRecord = (record) => record && ({
-  educationalSpecialNeeds: record.educationalSpecialNeeds,
-  tuitionFeeStatus: record.tuitionFeeStatus,
-  scholarshipStatus: record.scholarshipStatus,
-  attendance: record.attendance,
-  gradeMaximum: record.gradeMaximum,
-  previousSemesterGrade: record.previousSemesterGrade,
-  previousSemesterUnitsEnrolled: record.previousSemesterUnitsEnrolled,
-  previousSemesterUnitsApproved: record.previousSemesterUnitsApproved,
-  updatedAt: record.updatedAt,
-});
-
+const { loadWorkspace } = require('../utils/academicWorkspace');
 exports.listConnectedStudentWorkspace = async (req, res, next) => {
   try {
-    if (!ensureProfessor(req, res)) return;
-    const candidates = await StudentProfessorConnection.find({ professor: req.user._id, status: 'accepted' })
-      .populate('student', 'fullName institution').sort({ updatedAt: -1 });
-    const connections = candidates.filter(item => item.student && sameInstitution(item.student.institution, req.user.institution));
-    const studentIds = connections.map((item) => item.student._id);
-    const [records, forecasts] = await Promise.all([
-      StudentRecord.find({ user: { $in: studentIds } }),
-      StudentActivity.aggregate([
-        { $match: { student: { $in: studentIds }, type: 'forecast_run' } },
-        { $sort: { createdAt: -1 } },
-        { $group: { _id: '$student', forecast: { $first: '$forecast' }, createdAt: { $first: '$createdAt' } } },
-      ]),
-    ]);
-    const recordByStudent = new Map(records.map((record) => [String(record.user), record]));
-    const forecastByStudent = new Map(forecasts.map((item) => [String(item._id), { ...item.forecast, createdAt: item.createdAt }]));
-    res.status(200).json({ students: connections.map((connection) => ({
-      connectionId: connection._id,
-      student: { id: connection.student._id, fullName: connection.student.fullName, institution: connection.student.institution },
-      record: publicRecord(recordByStudent.get(String(connection.student._id))),
-      forecast: forecastByStudent.get(String(connection.student._id)) || null,
-    })) });
+    if (req.user.role !== 'professor') return res.status(403).json({ message: 'Only professors can access this workspace.' });
+    const connections = await Connection.find({ professor: req.user._id, status: 'accepted' }).populate('student', 'fullName email institution role emailVerified').sort({ updatedAt: -1 });
+    const students = [];
+    for (const connection of connections) {
+      const student = connection.student;
+      if (!student || !sameInstitution(student.institution, req.user.institution)) continue;
+      const workspace = await loadWorkspace(student);
+      students.push({ connectionId: connection._id, student: { id: student._id, fullName: student.fullName, email: student.email, institution: student.institution },
+        record: workspace.record, academic: workspace.academic, readiness: workspace.readiness,
+        academicPeriods: workspace.academicPeriods, providers: workspace.providers,
+        forecast: workspace.latestForecast ? { ...workspace.latestForecast.forecast, createdAt: workspace.latestForecast.createdAt } : null,
+        hasOutdatedForecast: workspace.hasOutdatedForecast });
+    }
+    res.json({ students });
   } catch (error) { next(error); }
 };

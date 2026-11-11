@@ -117,7 +117,7 @@ const NEXT_STEPS_BY_ROLE = {
   },
   student: {
     label: "Review your academic record",
-    detail: "Save your academic record, then run a personal forecast whenever you want to check your outlook.",
+    detail: "Review your professor-uploaded record, complete your personal information, then run a forecast.",
     action: "Save your record",
   },
 };
@@ -147,93 +147,31 @@ const riskLabel = (riskLevel) =>
 const percentage = (value) =>
   Number.isFinite(Number(value)) ? `${Math.round(Number(value) * 100)}%` : "—";
 
-const INITIAL_COHORT = [
-  {
-    id: "STU-1029",
-    name: "Alex Rivera",
-    program: "BS Information Technology",
-    yearLevel: "3rd Year",
-    riskLevel: "high",
-    riskScore: 84,
-    primaryTrigger: "GPA dropped > 0.6 this term; 3 consecutive absences in Networking 2",
-    displayGrade: "2.15 / 4.0",
-    currentGpa: 2.15,
-    attendanceRate: 74,
-    trajectory: [
-      { term: "Y1-T1", gpa: 3.4 },
-      { term: "Y1-T2", gpa: 3.2 },
-      { term: "Y2-T1", gpa: 2.85 },
-      { term: "Y2-T2", gpa: 2.6 },
-      { term: "Y3-T1", gpa: 2.15 },
-      { term: "Y3-T2 (Proj)", gpa: 1.85 },
-    ],
-  },
-  {
-    id: "STU-1044",
-    name: "Bea Santos",
-    program: "BS Computer Science",
-    yearLevel: "2nd Year",
-    riskLevel: "medium",
-    riskScore: 58,
-    primaryTrigger: "Midterm exam failure in Data Structures; missing lab submissions",
-    displayGrade: "2.75 / 4.0",
-    currentGpa: 2.75,
-    attendanceRate: 88,
-    trajectory: [
-      { term: "Y1-T1", gpa: 3.5 },
-      { term: "Y1-T2", gpa: 3.3 },
-      { term: "Y2-T1", gpa: 2.75 },
-      { term: "Y2-T2 (Proj)", gpa: 2.65 },
-    ],
-  },
-];
-
-function evaluateGrade(rawGradeNum, scaleType) {
+export function evaluateGrade(rawGradeNum, scaleType) {
   const scale = String(scaleType);
   let isAtRisk = false;
   let label = "";
   let passingCutoff = 2.0;
   let chartDomain = [1.0, 4.0];
   let isReversed = false;
-
   if (scale === "100") {
-    passingCutoff = 75.0;
-    chartDomain = [50, 100];
-    isAtRisk = rawGradeNum < 75.0;
-    label = `${rawGradeNum} / 100`;
+    passingCutoff = 75.0; chartDomain = [50, 100]; isAtRisk = rawGradeNum < 75.0; label = `${rawGradeNum} / 100`;
   } else if (scale === "20") {
-    passingCutoff = 10.0;
-    chartDomain = [0, 20];
-    isAtRisk = rawGradeNum < 10.0;
-    label = `${rawGradeNum} / 20`;
+    passingCutoff = 10.0; chartDomain = [0, 20]; isAtRisk = rawGradeNum < 10.0; label = `${rawGradeNum} / 20`;
   } else if (scale === "5-inv" || scale === "5") {
-    passingCutoff = 3.0;
-    chartDomain = [1.0, 5.0];
-    isReversed = true;
-    isAtRisk = rawGradeNum > 3.0;
+    passingCutoff = 3.0; chartDomain = [1.0, 5.0]; isReversed = true; isAtRisk = rawGradeNum > 3.0;
     label = `${rawGradeNum.toFixed(2)} / 5.00 (1.0 Highest)`;
   } else {
-    passingCutoff = 2.0;
-    chartDomain = [1.0, 4.0];
-    isAtRisk = rawGradeNum < 2.0;
-    label = `${rawGradeNum.toFixed(2)} / 4.00`;
+    isAtRisk = rawGradeNum < 2.0; label = `${rawGradeNum.toFixed(2)} / 4.00`;
   }
-
   return { isAtRisk, label, passingCutoff, chartDomain, isReversed };
 }
 
 function DashboardNavLink({ tab, currentTab, children }) {
   const path = tab === "overview" ? "/dashboard" : `/dashboard/${tab}`;
-  return (
-    <NavLink
-      to={path}
-      end={tab === "overview"}
-      className={({ isActive }) => (isActive ? "active" : "")}
-      aria-current={currentTab === tab ? "page" : undefined}
-    >
-      {children}
-    </NavLink>
-  );
+  return <NavLink to={path} end={tab === "overview"}
+    className={({ isActive }) => isActive ? "active" : ""}
+    aria-current={currentTab === tab ? "page" : undefined}>{children}</NavLink>;
 }
 
 function AdvisorDashboardModule({ user }) {
@@ -247,48 +185,17 @@ function AdvisorDashboardModule({ user }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchProfessorData = async () => {
-      setLoading(true);
-      try {
-        if (!apiFetch) return;
-
-        const [connRes, studentsRes] = await Promise.all([
-          apiFetch("/api/connections"),
-          apiFetch("/api/professor/students"),
-        ]);
-
-        if (connRes.ok && isMounted) {
-          const connData = await connRes.json();
-          const pendings = (connData.connections || []).filter(
-            (c) => c.status === "pending"
-          );
-          setPendingRequestsCount(pendings.length);
-        }
-
-        if (studentsRes.ok && isMounted) {
-          const stData = await studentsRes.json();
-          const sameInstitutionStudents = (stData.students || []).filter(
-            ({ student }) => !user.institution || student.institution === user.institution
-          );
-          setConnectedStudentsData(sameInstitutionStudents);
-        } else if (!studentsRes.ok && isMounted) {
-          const errData = await studentsRes.json().catch(() => ({}));
-          throw new Error(errData.message || "Failed to load connected students.");
-        }
-      } catch (err) {
-        if (isMounted) setError(err.message || "Error fetching dashboard data.");
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    fetchProfessorData();
-    return () => {
-      isMounted = false;
-    };
-  }, [apiFetch, user?.institution]);
+  useAdaptivePolling(async () => {
+    try {
+      const [connectionResponse, studentsResponse] = await Promise.all([
+        apiFetch("/api/connections"), apiFetch("/api/professor/students"),
+      ]);
+      if (!connectionResponse.ok || !studentsResponse.ok) throw new Error("Could not refresh connected students.");
+      const [connectionData, studentData] = await Promise.all([connectionResponse.json(), studentsResponse.json()]);
+      setPendingRequestsCount((connectionData.connections || []).filter(item => item.status === "pending").length);
+      setConnectedStudentsData(studentData.students || []); setError("");
+    } catch (err) { setError(err.message); } finally { setLoading(false); }
+  }, { intervalMs: 15000 });
 
   const formattedStudents = useMemo(() => {
     return connectedStudentsData.map(({ student, record, forecast }) => {
@@ -591,7 +498,7 @@ function AdvisorDashboardModule({ user }) {
 }
 
 export default function Dashboard() {
-  const { user, logout, apiFetch } = useAuth();
+  const { user, logout, apiFetch, sessionError, retrySession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -606,7 +513,6 @@ export default function Dashboard() {
     );
   }
 
-  const [cohort, setCohort] = useState(INITIAL_COHORT);
   const [studentRecord, setStudentRecord] = useState(null);
   const [latestForecast, setLatestForecast] = useState(null);
 
@@ -647,106 +553,18 @@ export default function Dashboard() {
     enabled: activeTab !== "messages",
   });
 
-  const processAndStoreRecord = useCallback((record) => {
-    if (!record || record.previousSemesterGrade === undefined || record.previousSemesterGrade === "") return;
-
-    setStudentRecord(record);
-    const rawGradeNum = Number(record.previousSemesterGrade) || 0;
-    const { isAtRisk, label } = evaluateGrade(rawGradeNum, record.gradeMaximum);
-
-    const unitsEnrolled = Number(record.previousSemesterUnitsEnrolled) || 1;
-    const unitsApproved = Number(record.previousSemesterUnitsApproved) || 0;
-    const passRate = unitsApproved / unitsEnrolled;
-
-    let riskLevel = "low";
-    let riskScore = 15;
-    let trigger = `Academic record satisfactory (${label}); student is not at risk`;
-
-    if (isAtRisk || passRate < 0.6) {
-      riskLevel = "high";
-      riskScore = 88;
-      trigger = `Critical: Term grade ${label} is below minimum academic retention threshold`;
-    } else if (passRate < 0.85) {
-      riskLevel = "medium";
-      riskScore = 55;
-      trigger = `Moderate: Passing grade, but course completion rate is ${(passRate * 100).toFixed(0)}%`;
-    }
-
-    const updatedStudentEntry = {
-      id: user?._id || "STU-CURRENT",
-      name: user?.fullName || "Current Student",
-      program: user?.program || "BS Information Technology",
-      yearLevel: "Current Term",
-      riskLevel,
-      riskScore,
-      primaryTrigger: trigger,
-      displayGrade: label,
-      currentGpa: rawGradeNum,
-      attendanceRate: record.attendance === "day" ? 94 : 85,
-      trajectory: [
-        { term: "Prior Term", gpa: rawGradeNum },
-        { term: "Current Term", gpa: rawGradeNum },
-        { term: "Next (Proj)", gpa: rawGradeNum },
-      ],
-    };
-
-    setCohort((prevCohort) => {
-      const idx = prevCohort.findIndex((s) => s.id === updatedStudentEntry.id);
-      if (idx >= 0) {
-        const next = [...prevCohort];
-        next[idx] = updatedStudentEntry;
-        return next;
-      }
-      return [updatedStudentEntry, ...prevCohort];
-    });
-  }, [user]);
-
-  useEffect(() => {
-    localStorage.removeItem("retainify_student_record");
+  const processAndStoreRecord = useCallback((record, workspace) => {
+    setStudentRecord(record || null);
+    if (workspace) setLatestForecast(workspace.latestForecast || null);
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      try {
-        if (!apiFetch) return;
-        const res = await apiFetch("/api/students/me");
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted) {
-            if (data?.record) processAndStoreRecord(data.record);
-            else setStudentRecord(null);
-          }
-        }
-      } catch (err) {
-        console.warn("Could not fetch user record on Dashboard mount", err);
-      }
-    })();
-    return () => {
-      isMounted = false;
-    };
-  }, [apiFetch, processAndStoreRecord]);
-
-  useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      try {
-        if (!apiFetch || user?.role !== "student") return;
-        const res = await apiFetch("/api/students/me/history");
-        if (!res.ok) return;
-        const data = await res.json();
-        const forecastRun = (data.activities || []).find(
-          (activity) => activity.type === "forecast_run" && activity.forecast
-        );
-        if (isMounted) setLatestForecast(forecastRun || null);
-      } catch (err) {
-        console.warn("Could not fetch the latest student forecast", err);
-      }
-    })();
-    return () => {
-      isMounted = false;
-    };
-  }, [apiFetch, user?.role]);
+  useAdaptivePolling(async () => {
+    const response = await apiFetch("/api/students/me");
+    if (!response.ok) return;
+    const data = await response.json();
+    setStudentRecord(data.record || null);
+    setLatestForecast(data.latestForecast || null);
+  }, { intervalMs: 15000, enabled: user?.role === "student" });
 
   const handleForecastCompleted = useCallback((forecastRun) => {
     setLatestForecast(forecastRun);
@@ -778,7 +596,7 @@ export default function Dashboard() {
   const firstName = user?.fullName ? user.fullName.split(" ")[0] : "Student";
   const hasConnectionAccess = user?.role === "student" || user?.role === "professor";
 
-  const trajectoryRecord = studentRecord || latestForecast?.record || null;
+  const trajectoryRecord = latestForecast?.record || studentRecord || null;
   const rawGradeNum = trajectoryRecord ? Number(trajectoryRecord.previousSemesterGrade) : null;
   const forecastedGrade = Number(latestForecast?.forecast?.predictedNextSemesterGrade);
   const hasForecast = Number.isFinite(forecastedGrade);
@@ -876,6 +694,7 @@ export default function Dashboard() {
           <DashboardNavLink tab="overview" currentTab={activeTab}>
             <LayoutDashboard size={18} /> Overview
           </DashboardNavLink>
+          {user?.role === "professor" && <DashboardNavLink tab="data" currentTab={activeTab}><Database size={18} /> Data Workspace</DashboardNavLink>}
           {user?.role !== "professor" && user?.role !== "administrator" && (
             <>
               <DashboardNavLink tab="data" currentTab={activeTab}>
@@ -988,8 +807,11 @@ export default function Dashboard() {
           </div>
         </header>
 
+        {sessionError && <div className="login-alert" role="alert"><p>{sessionError}</p><button type="button" className="connection-button" onClick={retrySession}>Retry session check</button></div>}
+
         <nav className="mobile-dashboard-nav" aria-label="Mobile navigation">
           <DashboardNavLink tab="overview" currentTab={activeTab}>Overview</DashboardNavLink>
+          {user?.role === "professor" && <DashboardNavLink tab="data" currentTab={activeTab}>Data</DashboardNavLink>}
           
           {user?.role !== "professor" && user?.role !== "administrator" && (
             <>
@@ -1052,7 +874,7 @@ export default function Dashboard() {
               </p>
               <h1>Good to see you, {firstName}.</h1>
               <p>
-                Save your academic record, run a forecast when you are ready, and
+                Review your professor-uploaded record, run a forecast when you are ready, and
                 revisit your History to track changes over time.
               </p>
             </section>
@@ -1097,7 +919,7 @@ export default function Dashboard() {
                       ? hasForecastRisk
                         ? `${animatedPercentage}% estimated dropout probability (${riskLabel(forecastRiskLevel)})`
                         : gradeDetails.isAtRisk ? `Grade below passing cutoff (${gradeDetails.passingCutoff})` : "Academic standing is satisfactory"
-                      : "Go to Data Workspace to submit your grades"}
+                      : "Awaiting your professor’s academic upload"}
                   </small>
                 </div>
               </article>
@@ -1114,7 +936,7 @@ export default function Dashboard() {
                   <small>
                     {gradeDetails !== null
                       ? "Reported Semester Grade"
-                      : "Awaiting your semester input"}
+                      : "Awaiting your professor's semester record"}
                   </small>
                 </div>
               </article>
@@ -1238,10 +1060,10 @@ export default function Dashboard() {
                   <div>
                     <h3>No Trajectory Available Yet</h3>
                     <p>
-                      Enter your latest term grades and completed credit units in the Data Workspace to plot your historical trajectory and predictive forecast.
+                      Ask your connected professor to upload your previous semester record through CSV. Review it in Data Workspace before running a forecast.
                     </p>
                     <NavLink to="/dashboard/data" className="dashboard-action">
-                      Enter Academic Record
+                      Review Academic Record
                     </NavLink>
                   </div>
                 </div>
@@ -1255,7 +1077,7 @@ export default function Dashboard() {
             <div className="section-heading">
               <div>
                 <p className="dashboard-eyebrow">Your data</p>
-                <h2>Tell us about your term</h2>
+                <h2>Your academic record and personal information</h2>
               </div>
             </div>
             <p className="dashboard-subtext">

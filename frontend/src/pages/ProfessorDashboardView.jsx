@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { BarChart3, Database, ShieldCheck, UsersRound } from "lucide-react";
 import ConnectedStudentData from "../components/ConnectedStudentData.jsx";
+import AcademicCsvImport from "../components/AcademicCsvImport.jsx";
 import { useAuth } from "../context/AuthContext";
 
 export default function ProfessorDashboardView({ user, activeTab }) {
   const { apiFetch } = useAuth();
   const [connections, setConnections] = useState([]);
+  const [importRevision, setImportRevision] = useState(0);
   const [isLoadingConnections, setIsLoadingConnections] = useState(true);
 
   useEffect(() => {
@@ -25,7 +27,7 @@ export default function ProfessorDashboardView({ user, activeTab }) {
   if (activeTab === "history" || activeTab === "connections") return null;
 
   if (activeTab === "data") {
-    return <section className="workspace-section" id="data"><div className="section-heading"><div><p className="dashboard-eyebrow">Class workspace</p><h2>Student context</h2></div></div><ConnectedStudentData /></section>;
+    return <section className="workspace-section academic-workspace" id="data"><div className="section-heading"><div><p className="dashboard-eyebrow">Class workspace</p><h2>Student academic records</h2></div></div><AcademicCsvImport onImported={() => setImportRevision(value => value + 1)} /><ConnectedStudentData key={importRevision} /></section>;
   }
 
   if (activeTab === "insights") {

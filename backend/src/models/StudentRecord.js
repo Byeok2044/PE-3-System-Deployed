@@ -1,8 +1,7 @@
 const mongoose = require('mongoose');
 
-// One record per student, holding the self-reported socio-economic and
-// academic fields used for risk classification / forecasting. Updated in
-// place as the student edits their entry (unique index on `user`).
+// Editable personal context only. Old academic fields are retained as legacy
+// snapshots; authoritative academic values live in AcademicRecord.
 const studentRecordSchema = new mongoose.Schema(
   {
     user: {
@@ -18,15 +17,17 @@ const studentRecordSchema = new mongoose.Schema(
     scholarshipStatus: { type: Boolean, required: true },
 
     // --- Academic characteristics ---
+    profileVersion: { type: Number, default: 0 },
+    legacyAcademicSource: { type: String, enum: ['legacy_self_reported'] },
     attendance: {
       type: String,
-      required: true,
+      required: false,
       enum: ['day', 'night'],
     },
-    gradeMaximum: { type: Number, required: true, min: 1, max: 100, default: 20 },
-    previousSemesterGrade: { type: Number, required: true, min: 0, max: 100 },
-    previousSemesterUnitsEnrolled: { type: Number, required: true, min: 1, max: 100 },
-    previousSemesterUnitsApproved: { type: Number, required: true, min: 0, max: 100 },
+    gradeMaximum: { type: Number, min: 1, max: 100 },
+    previousSemesterGrade: { type: Number, min: 0, max: 100 },
+    previousSemesterUnitsEnrolled: { type: Number, min: 1, max: 100 },
+    previousSemesterUnitsApproved: { type: Number, min: 0, max: 100 },
 
     submittedAt: { type: Date, default: Date.now },
   },

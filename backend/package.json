@@ -5,7 +5,9 @@
   "main": "src/Server.js",
   "scripts": {
     "start": "node src/Server.js",
-    "dev": "nodemon src/Server.js"
+    "dev": "nodemon src/Server.js",
+    "test": "node --test test/*.test.js",
+    "academics:migrate": "node scripts/migrateAcademicOwnership.js"
   },
   "dependencies": {
     "axios": "^1.7.7",

@@ -1,165 +1,51 @@
+const mongoose = require('mongoose');
 const StudentRecord = require('../models/StudentRecord');
 const StudentActivity = require('../models/StudentActivity');
+const { PROFILE_FIELDS, fail } = require('../utils/academicValidation');
+const { loadWorkspace, pick } = require('../utils/academicWorkspace');
 
-const ATTENDANCE_VALUES = ['day', 'night'];
-
-const toPublicRecord = (record) => ({
-  educationalSpecialNeeds: record.educationalSpecialNeeds,
-  tuitionFeeStatus: record.tuitionFeeStatus,
-  scholarshipStatus: record.scholarshipStatus,
-  attendance: record.attendance,
-  gradeMaximum: record.gradeMaximum,
-  previousSemesterGrade: record.previousSemesterGrade,
-  previousSemesterUnitsEnrolled: record.previousSemesterUnitsEnrolled,
-  previousSemesterUnitsApproved: record.previousSemesterUnitsApproved,
-  submittedAt: record.submittedAt,
-  updatedAt: record.updatedAt,
-});
-
-const recordSnapshot = (record) => toPublicRecord(record);
-
-const validatePayload = (body) => {
-  const errors = {};
-
-  if (typeof body.educationalSpecialNeeds !== 'boolean') {
-    errors.educationalSpecialNeeds = 'Select an option.';
-  }
-  if (typeof body.tuitionFeeStatus !== 'boolean') {
-    errors.tuitionFeeStatus = 'Select an option.';
-  }
-  if (typeof body.scholarshipStatus !== 'boolean') {
-    errors.scholarshipStatus = 'Select an option.';
-  }
-
-  if (!ATTENDANCE_VALUES.includes(body.attendance)) {
-    errors.attendance = 'Select day or night attendance.';
-  }
-
-  const gradeMaximum = Number(body.gradeMaximum);
-  if (!Number.isFinite(gradeMaximum) || gradeMaximum <= 0 || gradeMaximum > 100) {
-    errors.gradeMaximum = 'Select a grade maximum between 1 and 100.';
-  }
-
-  const previousSemesterGrade = Number(body.previousSemesterGrade);
-  const minimumGrade = gradeMaximum === 5 ? 1 : 0;
-  if (Number.isNaN(previousSemesterGrade) || previousSemesterGrade < minimumGrade || previousSemesterGrade > gradeMaximum) {
-    errors.previousSemesterGrade = 'Enter a grade within the selected grade scale.';
-  }
-
-  const previousSemesterUnitsEnrolled = Number(body.previousSemesterUnitsEnrolled);
-  if (!Number.isInteger(previousSemesterUnitsEnrolled) || previousSemesterUnitsEnrolled < 1 || previousSemesterUnitsEnrolled > 100) {
-    errors.previousSemesterUnitsEnrolled = 'Enter whole enrolled units between 1 and 100.';
-  }
-
-  const previousSemesterUnitsApproved = Number(body.previousSemesterUnitsApproved);
-  if (!Number.isInteger(previousSemesterUnitsApproved) || previousSemesterUnitsApproved < 0 || previousSemesterUnitsApproved > 100) {
-    errors.previousSemesterUnitsApproved = 'Enter whole approved units between 0 and 100.';
-  } else if (Number.isInteger(previousSemesterUnitsEnrolled) && previousSemesterUnitsApproved > previousSemesterUnitsEnrolled) {
-    errors.previousSemesterUnitsApproved = 'Approved units cannot exceed enrolled units.';
-  }
-
-  return { errors, gradeMaximum, previousSemesterGrade, previousSemesterUnitsEnrolled, previousSemesterUnitsApproved };
-};
-
-// @desc    Get the current student's own data-entry record
-// @route   GET /api/students/me
-// @access  Private (student)
+function requireStudent(user) {
+  if (user.role !== 'student') throw fail('Only students can access this resource.', 403);
+}
 exports.getMyRecord = async (req, res, next) => {
-  try {
-    if (req.user.role !== 'student') {
-      return res.status(403).json({ message: 'Only students can access this resource.' });
-    }
-
-    const record = await StudentRecord.findOne({ user: req.user._id });
-    res.status(200).json({ record: record ? toPublicRecord(record) : null });
-  } catch (err) {
-    next(err);
-  }
+  try { requireStudent(req.user); res.json(await loadWorkspace(req.user)); }
+  catch (error) { next(error); }
 };
-
-// @desc    Create or update the current student's data-entry record
-// @route   PUT /api/students/me
-// @access  Private (student)
 exports.upsertMyRecord = async (req, res, next) => {
   try {
-    if (req.user.role !== 'student') {
-      return res.status(403).json({ message: 'Only students can submit this data.' });
-    }
-
-    const { errors, gradeMaximum, previousSemesterGrade, previousSemesterUnitsEnrolled, previousSemesterUnitsApproved } = validatePayload(req.body || {});
-    if (Object.keys(errors).length > 0) {
-      return res.status(400).json({ message: 'Please correct the highlighted fields.', errors });
-    }
-
-    const update = {
-      user: req.user._id,
-      educationalSpecialNeeds: req.body.educationalSpecialNeeds,
-      tuitionFeeStatus: req.body.tuitionFeeStatus,
-      scholarshipStatus: req.body.scholarshipStatus,
-      attendance: req.body.attendance,
-      gradeMaximum,
-      previousSemesterGrade,
-      previousSemesterUnitsEnrolled,
-      previousSemesterUnitsApproved,
-      submittedAt: new Date(),
-    };
-
-    const existingRecord = await StudentRecord.findOne({ user: req.user._id });
-    const record = await StudentRecord.findOneAndUpdate(
-      { user: req.user._id },
-      update,
-      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
-    );
-
-    await StudentActivity.create({
-      student: req.user._id,
-      type: existingRecord ? 'record_updated' : 'record_created',
-      record: recordSnapshot(record),
-    });
-
-    res.status(200).json({
-      message: existingRecord ? 'Your information has been updated.' : 'Your information has been saved.',
-      record: toPublicRecord(record),
-    });
-  } catch (err) {
-    next(err);
-  }
+    requireStudent(req.user);
+    const body = req.body || {};
+    if (Object.keys(body).some(key => !PROFILE_FIELDS.includes(key))) throw fail('Academic information is managed by your professor. Only personal information can be submitted.', 403);
+    const errors = Object.fromEntries(PROFILE_FIELDS.filter(key => typeof body[key] !== 'boolean').map(key => [key, 'Select yes or no.']));
+    if (Object.keys(errors).length) return res.status(400).json({ message: 'Complete your personal information.', errors });
+    const record = await StudentRecord.findOneAndUpdate({ user: req.user._id }, {
+      $set: { ...pick(body, PROFILE_FIELDS), submittedAt: new Date() },
+      $inc: { profileVersion: 1 }, $setOnInsert: { user: req.user._id },
+    }, { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true });
+    await StudentActivity.create({ student: req.user._id, type: 'record_updated', record: pick(record, [...PROFILE_FIELDS, 'profileVersion']) });
+    res.json({ message: 'Your personal information has been saved.', ...await loadWorkspace(req.user) });
+  } catch (error) { next(error); }
 };
-
-// @desc    Get the current student's activity timeline
-// @route   GET /api/students/me/history
-// @access  Private (student)
 exports.getMyHistory = async (req, res, next) => {
   try {
-    if (req.user.role !== 'student') {
-      return res.status(403).json({ message: 'Only students can access this resource.' });
-    }
-    const activities = await StudentActivity.find({ student: req.user._id }).sort({ createdAt: -1 }).limit(100).lean();
-    res.status(200).json({ activities: activities.map(({ _id, type, record, forecast, insight, createdAt }) => ({ id: _id, type, record, forecast, insight, createdAt })) });
-  } catch (err) {
-    next(err);
-  }
+    requireStudent(req.user);
+    const [activities, workspace] = await Promise.all([
+      StudentActivity.find({ student: req.user._id }).sort({ createdAt: -1 }).limit(100).lean(),
+      loadWorkspace(req.user, { includeForecast: false }),
+    ]);
+    res.json({ activities: activities.map(({ _id, type, record, forecast, insight, inputVersion, createdAt }) => ({
+      id: _id, type, record, forecast, insight, inputVersion, createdAt,
+      freshness: inputVersion ? (workspace.inputVersion === inputVersion ? 'current' : 'outdated') : 'legacy',
+    })) });
+  } catch (error) { next(error); }
 };
-
-// @desc    Delete one activity from the current student's timeline
-// @route   DELETE /api/students/me/history/:activityId
-// @access  Private (student)
 exports.deleteMyHistoryEntry = async (req, res, next) => {
   try {
-    if (req.user.role !== 'student') {
-      return res.status(403).json({ message: 'Only students can delete their history.' });
-    }
-
-    const activity = await StudentActivity.findOneAndDelete({
-      _id: req.params.activityId,
-      student: req.user._id,
-    });
-    if (!activity) {
-      return res.status(404).json({ message: 'History entry not found.' });
-    }
-
-    res.status(200).json({ message: 'History entry deleted.' });
-  } catch (err) {
-    next(err);
-  }
+    requireStudent(req.user);
+    if (!mongoose.isValidObjectId(req.params.activityId)) throw fail('Invalid history identifier.');
+    // AcademicRecordRevision is deliberately not reachable through this endpoint.
+    const activity = await StudentActivity.findOneAndDelete({ _id: req.params.activityId, student: req.user._id, type: { $ne: 'risk_alert_sent' } });
+    if (!activity) throw fail('History entry not found or protected.', 404);
+    res.json({ message: 'History entry deleted.' });
+  } catch (error) { next(error); }
 };

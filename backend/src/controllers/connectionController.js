@@ -1,5 +1,4 @@
 const StudentProfessorConnection = require('../models/StudentProfessorConnection');
-const StudentRecord = require('../models/StudentRecord');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const Conversation = require('../models/Conversation');
@@ -82,45 +81,8 @@ exports.searchProfessors = async (req, res, next) => {
   }
 };
 
-exports.listConnectedStudentData = async (req, res, next) => {
-  try {
-    if (req.user.role !== 'professor') {
-      return res.status(403).json({ message: 'Only professors can view connected student data.' });
-    }
-
-    const candidates = await StudentProfessorConnection.find({
-      professor: req.user._id,
-      status: 'accepted',
-    }).populate('student', 'fullName email institution');
-    const connections = candidates.filter(item => item.student && sameInstitution(item.student.institution, req.user.institution));
-    const studentIds = connections.map((connection) => connection.student._id);
-    const records = await StudentRecord.find({ user: { $in: studentIds } });
-    const recordsByStudentId = new Map(records.map((record) => [String(record.user), record]));
-
-    return res.status(200).json({
-      students: connections.map((connection) => {
-        const record = recordsByStudentId.get(String(connection.student._id));
-        return {
-          connectionId: connection._id,
-          student: person(connection.student),
-          record: record ? toPublicStudentRecord(record) : null,
-        };
-      }),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-const toPublicStudentRecord = (record) => ({
-  educationalSpecialNeeds: record.educationalSpecialNeeds,
-  tuitionFeeStatus: record.tuitionFeeStatus,
-  scholarshipStatus: record.scholarshipStatus,
-  attendance: record.attendance,
-  previousSemesterGrade: record.previousSemesterGrade,
-  previousSemesterUnitsApproved: record.previousSemesterUnitsApproved,
-  updatedAt: record.updatedAt,
-});
+// Both professor read endpoints use the same authoritative records and freshness rules.
+exports.listConnectedStudentData = (...args) => require('./professorController').listConnectedStudentWorkspace(...args);
 
 exports.requestConnection = async (req, res, next) => {
   try {

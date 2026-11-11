@@ -5,6 +5,8 @@ const { getMyRecord, upsertMyRecord, getMyHistory, deleteMyHistoryEntry } = requ
 const router = express.Router();
 
 router.get('/me', protect, getMyRecord);
+router.put('/me/academic-provider', protect, require('../controllers/academicImportController').designateProvider);
+router.get('/me/academic-audit', protect, require('../controllers/academicImportController').audit);
 router.get('/me/history', protect, getMyHistory);
 router.delete('/me/history/:activityId', protect, deleteMyHistoryEntry);
 router.put('/me', protect, upsertMyRecord);

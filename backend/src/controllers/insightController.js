@@ -1,6 +1,8 @@
 const axios = require('axios');
 const StudentActivity = require('../models/StudentActivity');
 const { insightSchema, promptFor, validateSupportInsight } = require('../utils/supportInsight');
+const workspaceService = require('../utils/academicWorkspace');
+const User = require('../models/User');
 
 exports.generateMySupportInsight = async (req, res, next) => {
   try {
@@ -9,6 +11,8 @@ exports.generateMySupportInsight = async (req, res, next) => {
 
     const latestForecast = await StudentActivity.findOne({ student: req.user._id, type: 'forecast_run' }).sort({ createdAt: -1 }).lean();
     if (!latestForecast) return res.status(400).json({ message: 'Run a forecast before requesting support suggestions.' });
+    const workspace = await workspaceService.loadWorkspace(req.user, { includeForecast: false });
+    if (!workspace.inputVersion || workspace.inputVersion !== latestForecast.inputVersion) return res.status(409).json({ message: 'Your previous forecast is outdated. Run a new forecast before requesting support suggestions.' });
 
     const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
     const { data } = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -21,9 +25,15 @@ exports.generateMySupportInsight = async (req, res, next) => {
     const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('');
     if (!text) return res.status(502).json({ message: 'Support suggestions could not be generated. Please try again.' });
     const insight = validateSupportInsight(JSON.parse(text), latestForecast.forecast);
+    const current = await workspaceService.loadWorkspace(await User.findById(req.user._id), { includeForecast: false });
+    if (current.inputVersion !== workspace.inputVersion) return res.status(409).json({ message: 'Your record changed while generating suggestions. Run a new forecast.' });
     const activity = await StudentActivity.create({
       student: req.user._id,
       type: 'insight_generated',
+      inputVersion: latestForecast.inputVersion,
+      academicRecord: latestForecast.academicRecord,
+      academicVersion: latestForecast.academicVersion,
+      profileVersion: latestForecast.profileVersion,
       forecast: latestForecast.forecast,
       record: latestForecast.record,
       insight: { ...insight, model, promptVersion: 'student-support-v2-model-reasons' },

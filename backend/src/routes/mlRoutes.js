@@ -2,41 +2,36 @@ const express = require('express');
 const axios = require('axios');
 const { protect } = require('../middleware/authMiddleware');
 const StudentActivity = require('../models/StudentActivity');
+const User = require('../models/User');
+const workspaceService = require('../utils/academicWorkspace');
+const { pick } = workspaceService;
+const { ACADEMIC_FIELDS, PROFILE_FIELDS, fail } = require('../utils/academicValidation');
 const { sendRiskAlerts } = require('../utils/riskAlertNotifications');
-
 const router = express.Router();
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 
-router.post('/predict', protect, async (req, res, next) => {
+async function predictMyRecord(req, res, next) {
   try {
-    const { data } = await axios.post(`${ML_SERVICE_URL}/predict`, req.body, {
-      timeout: 10000,
-    });
-    if (req.user.role === 'student') {
-      // Keep forecast history snapshots compatible with saved-record history.
-      // The ML API expects studySchedule, while the application record uses
-      // attendance; store the latter as the canonical timeline field.
-      const { studySchedule, ...recordFields } = req.body;
-      await StudentActivity.create({
-        student: req.user._id,
-        type: 'forecast_run',
-        record: { ...recordFields, attendance: studySchedule },
-        forecast: data,
-      });
-      try {
-        await sendRiskAlerts(req.user, data);
-      } catch (emailError) {
-        // Forecasting must remain available when an external mail provider fails.
-        console.error('Unable to send risk alert emails:', emailError.response?.data || emailError.message);
-      }
-    }
-    res.status(200).json(data);
-  } catch (err) {
-    if (err.response) {
-      return res.status(err.response.status).json(err.response.data);
-    }
-    next(err);
+    if (req.user.role !== 'student') throw fail('Only students can run their personal forecast.', 403);
+    if (Object.keys(req.body || {}).length) throw fail('Forecast inputs are loaded from your saved profile and professor-uploaded academic record. Do not submit academic values.', 400);
+    const workspace = await workspaceService.loadWorkspace(req.user, { includeForecast: false });
+    if (!workspace.canForecast) throw fail('A forecast is unavailable (' + workspace.readiness + '). Complete your personal information and ask your connected academic provider to upload your semester record.', 409);
+    const { attendance, ...fields } = pick(workspace.record, [...PROFILE_FIELDS, ...ACADEMIC_FIELDS]);
+    const { data } = await axios.post(ML_SERVICE_URL + '/predict', { ...fields, studySchedule: attendance }, { timeout: 10000 });
+    const currentUser = await User.findById(req.user._id);
+    const current = await workspaceService.loadWorkspace(currentUser, { includeForecast: false });
+    if (current.inputVersion !== workspace.inputVersion) throw fail('Your inputs changed while forecasting. Run a new forecast.', 409);
+    const activity = await StudentActivity.create({ student: req.user._id, type: 'forecast_run', record: workspace.record, forecast: data,
+      inputVersion: workspace.inputVersion, academicRecord: workspace.record.academicRecordId,
+      academicVersion: workspace.record.academicVersion, profileVersion: workspace.profile.profileVersion });
+    try { await sendRiskAlerts(currentUser, data, { inputVersion: workspace.inputVersion, forecastId: activity._id }); }
+    catch (error) { console.error('Unable to send risk alert emails:', error.message); }
+    res.json({ ...data, activity: { id: activity._id, forecast: data, record: workspace.record, inputVersion: workspace.inputVersion, createdAt: activity.createdAt } });
+  } catch (error) {
+    if (error.response) return res.status(error.response.status).json(error.response.data);
+    next(error);
   }
-});
-
+}
+router.post('/predict', protect, predictMyRecord);
 module.exports = router;
+module.exports.predictMyRecord = predictMyRecord;

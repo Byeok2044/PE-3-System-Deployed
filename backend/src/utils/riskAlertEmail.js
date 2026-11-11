@@ -48,7 +48,7 @@ const createRiskAlertEmail = ({ student, forecast, professor }) => {
       <p>${professor ? 'Please review the shared academic record and trajectory in your professor dashboard, and consider a supportive check-in with the student. Discuss their circumstances before drawing conclusions or recommending support.' : 'Small, timely steps can make a difference. Please review your forecast and consider speaking with a professor, adviser, or student-support service about attendance, coursework, finances, or any barriers you are facing.'}</p>
       <p style="margin:28px 0"><a href="${reviewUrl}" style="background:#0d47a1;color:#fff;padding:12px 18px;border-radius:4px;text-decoration:none">${professor ? 'Review student trajectory' : 'Review my forecast'}</a></p>
       <p style="font-size:13px;color:#475569">Sign in to your ${professor ? 'professor account and select View Trajectory beside the student' : 'student account to review your forecast'}. If the button does not work, open <a href="${reviewUrl}">${reviewUrl}</a>.</p>
-      <p>${professor ? 'Use this forecast to guide a supportive conversation, not as the sole basis for academic or disciplinary decisions.' : 'If you believe this information is incomplete or no longer reflects your circumstances, update your academic information and run a new forecast.'}</p>
+        <p>${professor ? 'Use this forecast to guide a supportive conversation, not as the sole basis for academic or disciplinary decisions.' : 'If your academic information needs correction, contact your academic-record professor. After the correction is uploaded, run a new forecast.'}</p>
       <p>Retainify Student Support</p>
     </main>`;
 };

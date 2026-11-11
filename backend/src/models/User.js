@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema(
     },
     institution: { type: String, trim: true },
     institutionId: { type: String, default: '' },
+    academicAccessRevision: { type: Number, default: 0 },
     bio: { type: String, trim: true, maxlength: 500, default: '' },
     profileImage: { type: String, default: '' },
     role: {

@@ -10,10 +10,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import useAdaptivePolling from "../hooks/useAdaptivePolling";
+import "../styles/AcademicWorkspace.css";
 
 const eventCopy = {
-  record_created: { label: "Academic Record Created", icon: FilePlus2 },
-  record_updated: { label: "Academic Record Updated", icon: FilePenLine },
+  record_created: { label: "Personal Information Created", icon: FilePlus2 },
+  record_updated: { label: "Personal Information Updated", icon: FilePenLine },
   forecast_run: { label: "Forecast Prediction run", icon: BarChart3 },
   insight_generated: { label: "Support Suggestions Generated", icon: Activity },
 };
@@ -29,6 +31,7 @@ const formatDate = (value) => {
 export default function HistoryView({ user }) {
   const { apiFetch } = useAuth();
   const [selectedFilter, setSelectedFilter] = useState("all");
+  const [academicAudit, setAcademicAudit] = useState([]);
   const [state, setState] = useState({
     loading: user?.role === "student",
     error: "",
@@ -60,39 +63,17 @@ export default function HistoryView({ user }) {
     }
   };
 
-  useEffect(() => {
-    if (user?.role !== "student") return;
-    let active = true;
-
-    (async () => {
-      try {
-        const response = await apiFetch("/api/students/me/history");
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.message || "Could not load your history.");
-        }
-        if (active) {
-          setState({
-            loading: false,
-            error: "",
-            activities: data.activities || [],
-          });
-        }
-      } catch (error) {
-        if (active) {
-          setState({
-            loading: false,
-            error: error.message || "Could not load your history.",
-            activities: [],
-          });
-        }
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [apiFetch, user?.role]);
+  useAdaptivePolling(async () => {
+    try {
+      const [historyResponse, auditResponse] = await Promise.all([
+        apiFetch("/api/students/me/history"), apiFetch("/api/students/me/academic-audit"),
+      ]);
+      if (!historyResponse.ok || !auditResponse.ok) throw new Error("Could not load your history.");
+      const [history, audit] = await Promise.all([historyResponse.json(), auditResponse.json()]);
+      setState({ loading: false, error: "", activities: history.activities || [] });
+      setAcademicAudit(audit.entries || []);
+    } catch (error) { setState(current => ({ ...current, loading: false, error: error.message })); }
+  }, { intervalMs: 15000, enabled: user?.role === "student" });
 
   if (user?.role !== "student") {
     return (
@@ -156,8 +137,8 @@ export default function HistoryView({ user }) {
               aria-label="Filter events by type"
             >
               <option value="all">All Events</option>
-              <option value="record_created">Academic Record Created</option>
-              <option value="record_updated">Academic Record Updated</option>
+              <option value="record_created">Personal Information Created</option>
+              <option value="record_updated">Personal Information Updated</option>
               <option value="forecast_run">Forecast Prediction Run</option>
               <option value="insight_generated">Support Suggestions Generated</option>
               <option value="system_event">System Event</option>
@@ -166,6 +147,16 @@ export default function HistoryView({ user }) {
         </div>
       </div>
 
+      <details className="academic-audit"><summary>Academic record audit (protected)</summary>
+        <p>Professor uploads, corrections, and provider changes are retained independently of your activity history.</p>
+        {academicAudit.length ? <ul>{academicAudit.map(entry => <li key={entry._id}>
+          <strong>{entry.action.replaceAll("_", " ")}</strong> · {entry.actor?.fullName || "Account unavailable"} · {formatDate(entry.createdAt)}
+          {entry.after && <span> · {entry.after.academicYear}, semester {entry.after.semester} · version {entry.after.academicVersion}</span>}
+          {entry.reason && <p>{entry.reason}</p>}
+          {entry.before?.previousSemesterGrade !== undefined && <p>Before: {entry.before.previousSemesterGrade}/{entry.before.gradeMaximum}, {entry.before.previousSemesterUnitsApproved}/{entry.before.previousSemesterUnitsEnrolled} units</p>}
+          {entry.after?.previousSemesterGrade !== undefined && <p>After: {entry.after.previousSemesterGrade}/{entry.after.gradeMaximum}, {entry.after.previousSemesterUnitsApproved}/{entry.after.previousSemesterUnitsEnrolled} units</p>}
+        </li>)}</ul> : <p>No professor-managed academic events yet.</p>}
+      </details>
       {state.error && (
         <div className="login-alert" role="alert">
           {state.error}
@@ -206,7 +197,7 @@ export default function HistoryView({ user }) {
             <div>
               <h3 style={{ margin: 0, fontSize: "1.1rem" }}>No activity logged yet</h3>
               <p style={{ margin: "0.35rem 0 0 0", lineHeight: 1.5 }}>
-                Save your academic data in the Data Workspace or generate an academic forecast to begin tracking your timeline.
+                Save your personal information or run a forecast after your professor uploads your academic record.
               </p>
             </div>
           </div>
@@ -237,14 +228,15 @@ export default function HistoryView({ user }) {
                   <div className="history-timeline-main">
                     <strong>{details.label}</strong>
                     <time>{formatDate(entry.createdAt)}</time>
+                    {(entry.forecast || entry.insight) && <small>{entry.freshness === "current" ? "Current inputs" : entry.freshness === "legacy" ? "Historical · legacy inputs" : "Historical · outdated inputs"}{entry.record?.academicVersion !== undefined ? " · Academic version " + entry.record.academicVersion : ""}</small>}
                   </div>
 
-                  {entry.record && (
+                  {entry.record?.previousSemesterGrade !== undefined && (
                     <div className="history-timeline-record-meta">
                       <span>
                         Previous Grade:{" "}
                         <strong>
-                          {entry.record.previousSemesterGrade} / {entry.record.gradeMaximum || 20}
+                          {entry.record.previousSemesterGrade} / {entry.record.gradeMaximum ?? "Not recorded"}
                         </strong>
                       </span>
                       <span>
@@ -264,7 +256,7 @@ export default function HistoryView({ user }) {
                 {forecast && (
                   <div className="history-timeline-value">
                     <span className="forecast-metric-badge">
-                      Proj. Grade: {forecast.predictedNextSemesterGrade} / {forecast.gradeMaximum || 20}
+                      Proj. Grade: {forecast.predictedNextSemesterGrade} / {forecast.gradeMaximum ?? "Not recorded"}
                     </span>
                     <span
                       className={`forecast-risk-tag ${isHighRisk ? "risk-high" : "risk-low"}`}
@@ -278,7 +270,7 @@ export default function HistoryView({ user }) {
                   type="button"
                   className="history-delete-button"
                   onClick={() => setEntryPendingDeletion(entry)}
-                  disabled={deletingId === (entry.id || entry._id)}
+                  disabled={entry.type === "risk_alert_sent" || deletingId === (entry.id || entry._id)}
                   aria-label={`Delete ${details.label.toLowerCase()} from history`}
                 >
                   <Trash2 size={15} />

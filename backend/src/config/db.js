@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
+const { configureMongoDns } = require('./mongoDns');
 
 const connectDB = async () => {
   try {
+    configureMongoDns();
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
       // The connection string currently has no database segment, which makes
       // MongoDB default to "test". Allow an environment override while using

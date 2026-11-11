@@ -2,8 +2,10 @@ const StudentActivity = require('../models/StudentActivity');
 const StudentProfessorConnection = require('../models/StudentProfessorConnection');
 const { sameInstitution } = require('./institutionAccess');
 const { isRiskAlertLevel, sendRiskAlertEmail } = require('./riskAlertEmail');
+const workspaceService = require('./academicWorkspace');
+const User = require('../models/User');
 
-const sendRiskAlerts = async (student, forecast) => {
+const sendRiskAlerts = async (student, forecast, context) => {
   const riskLevel = String(forecast.riskLevel || '').toLowerCase();
   if (!isRiskAlertLevel(riskLevel)) return;
 
@@ -25,11 +27,24 @@ const sendRiskAlerts = async (student, forecast) => {
       });
       if (recentAlert) return;
 
+      if (context) {
+        const currentStudent = await User.findById(student._id);
+        const workspace = await workspaceService.loadWorkspace(currentStudent, { includeForecast: false });
+        if (workspace.inputVersion !== context.inputVersion) return;
+        if (role === 'professor') {
+          const currentProfessor = await User.findById(recipient._id);
+          if (!currentProfessor?.emailVerified || currentProfessor.role !== 'professor' || !sameInstitution(currentStudent.institution, currentProfessor.institution)) return;
+          const connected = await StudentProfessorConnection.exists({ student: student._id, professor: recipient._id, status: 'accepted' });
+          if (!connected) return;
+        }
+      }
+
       await sendRiskAlertEmail({ student, forecast, ...(role === 'professor' ? { professor: recipient } : {}) });
       await StudentActivity.create({
         student: student._id,
         type: 'risk_alert_sent',
         alert: {
+          forecastId: context?.forecastId, inputVersion: context?.inputVersion,
           riskLevel, dropoutProbability: forecast.dropoutProbability, delivery: 'email',
           recipientRole: role, recipientId: recipient._id,
         },

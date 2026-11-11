@@ -6,6 +6,11 @@ const studentActivitySchema = new mongoose.Schema(
   {
     student: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     type: { type: String, required: true, enum: ['record_created', 'record_updated', 'forecast_run', 'insight_generated', 'risk_alert_sent'] },
+    inputVersion: String,
+    academicRecord: { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicRecord' },
+    academicVersion: Number,
+    profileVersion: Number,
+    legacySource: String,
     record: { type: mongoose.Schema.Types.Mixed },
     forecast: { type: mongoose.Schema.Types.Mixed },
     insight: { type: mongoose.Schema.Types.Mixed },

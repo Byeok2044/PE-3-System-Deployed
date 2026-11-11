@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { BarChart3, Play, RefreshCw, ShieldCheck, Sparkles, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
-const scheduleToApi = (attendance) => (attendance === "day" ? "day" : "night");
+import useAdaptivePolling from "../hooks/useAdaptivePolling";
+import { READINESS_MESSAGES } from "./StudentDataForm";
 const TRACER_ANIMATION_DURATION_MS = 3000; // 3.0s exact full-perimeter trace
 
 export default function StudentInsights({ onForecastComplete, latestForecast }) {
   const { apiFetch } = useAuth();
-  const [record, setRecord] = useState(null);
+  const [workspace, setWorkspace] = useState(null);
+  const [inputVersion, setInputVersion] = useState(null);
   const [loadingRecord, setLoadingRecord] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
@@ -18,51 +20,34 @@ export default function StudentInsights({ onForecastComplete, latestForecast }) 
   useEffect(() => {
     setPrediction(latestForecast?.forecast || null);
     setInsight(null);
-  }, [latestForecast]);
+  }, [latestForecast?.id, latestForecast?.inputVersion]);
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const response = await apiFetch("/api/students/me");
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || "Your academic record could not be loaded.");
-        if (active) setRecord(data.record);
-      } catch (requestError) {
-        if (active) setError(requestError.message || "Your academic record could not be loaded.");
-      } finally {
-        if (active) setLoadingRecord(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [apiFetch]);
+  useAdaptivePolling(async () => {
+    try {
+      const response = await apiFetch("/api/students/me");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Could not load your academic workspace.");
+      setWorkspace(data);
+      if (data.inputVersion !== inputVersion) { setInsight(null); setInputVersion(data.inputVersion); }
+      setPrediction(data.latestForecast?.forecast || null);
+    } catch (err) { setError(err.message); } finally { setLoadingRecord(false); }
+  }, { intervalMs: 15000 });
 
   const runForecast = async () => {
-    if (!record) return;
+    if (!workspace?.canForecast) return;
     setRunning(true);
     setError("");
     try {
       const response = await apiFetch("/api/ml/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          educationalSpecialNeeds: record.educationalSpecialNeeds,
-          tuitionFeeStatus: record.tuitionFeeStatus,
-          scholarshipStatus: record.scholarshipStatus,
-          studySchedule: scheduleToApi(record.attendance),
-          previousSemesterUnitsEnrolled: record.previousSemesterUnitsEnrolled,
-          previousSemesterUnitsApproved: record.previousSemesterUnitsApproved,
-          previousSemesterGrade: record.previousSemesterGrade,
-          gradeMaximum: record.gradeMaximum || 20,
-        }),
+        body: JSON.stringify({}),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || data.message || "Your forecast could not be generated.");
-      setPrediction(data);
+      setPrediction(data.activity.forecast);
       setInsight(null);
-      onForecastComplete?.({ forecast: data, record, createdAt: new Date().toISOString() });
+      onForecastComplete?.(data.activity);
     } catch (requestError) {
       setError(requestError.message || "Your forecast could not be generated.");
     } finally {
@@ -99,17 +84,17 @@ export default function StudentInsights({ onForecastComplete, latestForecast }) 
   };
 
   if (loadingRecord) return <p className="student-data-loading">Loading your academic record…</p>;
-  if (!record) {
+  if (!workspace?.canForecast) {
     return (
       <section className="workspace-section">
         <div className="section-heading">
           <div>
             <p className="dashboard-eyebrow">Your forecast</p>
-            <h2>Add your semester record first</h2>
+            <h2>Your forecast is waiting for your record</h2>
           </div>
         </div>
         <p className="dashboard-subtext">
-          Save your study schedule, units, and previous-semester grade in Data Workspace to generate a forecast.
+          {READINESS_MESSAGES[workspace?.readiness] || "Open Data Workspace to review your academic record and complete your personal information."}
         </p>
       </section>
     );
@@ -156,7 +141,7 @@ export default function StudentInsights({ onForecastComplete, latestForecast }) 
         </div>
       </div>
       <p className="dashboard-subtext">
-        {prediction ? "Your latest saved forecast is shown below. Run a new forecast after updating your academic record. " : "Run a forecast from your saved academic record. "}
+        {prediction ? "Your latest saved forecast is shown below. Run a new forecast after your professor corrects your academic record or you update your personal information. " : "Run a forecast from your professor-uploaded academic record. "}
         Each completed forecast is added to your History so you can compare it later.
       </p>
 

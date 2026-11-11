@@ -4,6 +4,8 @@ const axios = require('axios');
 const StudentActivity = require('../src/models/StudentActivity');
 const { promptFor, validateSupportInsight } = require('../src/utils/supportInsight');
 const { generateMySupportInsight } = require('../src/controllers/insightController');
+const workspaceService = require('../src/utils/academicWorkspace');
+const User = require('../src/models/User');
 
 const record = { previousSemesterGrade: 9, gradeMaximum: 20, attendance: 'day' };
 const forecast = {
@@ -28,7 +30,7 @@ const responseInsight = () => ({
 });
 
 test('prompt requires verified reasons, directions and actions linked to the largest contributors', () => {
-  const prompt = promptFor({ record, forecast });
+  const prompt = promptFor({ record, forecast, inputVersion: "current-version" });
   assert.match(prompt, /riskReasons must contain exactly these factorKey values.*previousGrade.*tuitionStatus/);
   assert.match(prompt, /protectiveFactors must contain exactly these factorKey values.*courseCompletion/);
   assert.match(prompt, /NOT an input to the dropout-risk model/);
@@ -93,9 +95,11 @@ for (const valid of [true, false]) {
       if (originalKey === undefined) delete process.env.GEMINI_API_KEY;
       else process.env.GEMINI_API_KEY = originalKey;
     });
+    stub(workspaceService, 'loadWorkspace', async () => ({ inputVersion: 'current-version' }));
+    stub(User, 'findById', async () => ({ _id: 'current-student' }));
     stub(StudentActivity, 'findOne', (filter) => {
       assert.equal(filter.student, 'current-student');
-      return { sort: () => ({ lean: async () => ({ record, forecast }) }) };
+      return { sort: () => ({ lean: async () => ({ record, forecast, inputVersion: "current-version" }) }) };
     });
     let saved;
     stub(StudentActivity, 'create', async (activity) => { saved = activity; return { createdAt: 'now' }; });

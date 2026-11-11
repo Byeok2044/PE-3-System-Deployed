@@ -161,6 +161,11 @@ test('an unverified student is skipped without preventing verified professor not
 });
 
 test('prediction route saves the forecast and notifies professors while email failures leave the response successful', async () => {
+  const workspaceService = require('../src/utils/academicWorkspace');
+  const User = require('../src/models/User');
+  stub(User, 'findById', async id => id === student._id ? student : professor(id));
+  stub(Connection, 'exists', async () => true);
+  stub(workspaceService, 'loadWorkspace', async () => ({ canForecast: true, inputVersion: 'version', profile: { profileVersion: 1 }, record: { attendance: 'day', previousSemesterGrade: 10, academicRecordId: 'academic', academicVersion: 1 } }));
   const router = require('../src/routes/mlRoutes');
   const predict = router.stack.find((layer) => layer.route?.path === '/predict').route.stack.at(-1).handle;
   stub(axios, 'post', async (url, payload) => {
@@ -169,9 +174,9 @@ test('prediction route saves the forecast and notifies professors while email fa
     deliveries.push(payload);
   });
   const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
-  await predict({ user: student, body: { studySchedule: 'day', previousSemesterGrade: 10 } }, res, (error) => { throw error; });
-  assert.equal(res.code, 200);
-  assert.deepEqual(res.body, forecast);
+  await predict({ user: student, body: {} }, res, (error) => { throw error; });
+  assert.equal(res.code || 200, 200);
+  assert.deepEqual(res.body.activity.forecast, forecast);
   assert.equal(activities[0].type, 'forecast_run');
   assert.equal(activities[0].record.attendance, 'day');
   assert.equal(activities[0].record.studySchedule, undefined);

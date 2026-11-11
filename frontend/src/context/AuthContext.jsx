@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { createSessionChannel } from "./sessionChannel.js";
+import { validateSession } from "./validateSession.js";
 
 const AuthContext = createContext(null);
 const STORAGE_KEY = "eduforecaster_session";
@@ -29,6 +30,9 @@ export function AuthProvider({ children }) {
     () => getStoredSession()?.session ?? null,
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionError, setSessionError] = useState("");
+  const restoreSessionRef = useRef(null);
+  const retrySession = useCallback(() => restoreSessionRef.current?.(), []);
   const sessionChannel = useRef(null);
   const sessionVersion = useRef(0);
 
@@ -37,6 +41,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(STORAGE_KEY);
     setSession(null);
+    setSessionError("");
     setIsLoading(false);
   }, []);
 
@@ -62,13 +67,16 @@ export function AuthProvider({ children }) {
           if (isCurrent()) setSession(null);
           return;
         }
-        const response = await fetch("/api/auth/me", {
-          headers: { Authorization: `Bearer ${stored.session.token}` },
-        });
-        if (!response.ok) throw new Error("Session expired");
-        const { user } = await response.json();
+        const result = await validateSession(stored.session.token);
         if (!isCurrent()) return;
-        const updated = { ...stored.session, user };
+        if (result.status === "invalid") { logout(); return; }
+        if (result.status === "unavailable") {
+          setSession(stored.session);
+          setSessionError(result.message);
+          return;
+        }
+        setSessionError("");
+        const updated = { ...stored.session, user: result.user };
         stored.storage.setItem(STORAGE_KEY, JSON.stringify(updated));
         setSession(updated);
       } catch {
@@ -78,6 +86,7 @@ export function AuthProvider({ children }) {
       }
     };
 
+    restoreSessionRef.current = restoreSession;
     const channel = createSessionChannel({
       readSession: () => getStoredSession()?.session,
       onSessionAvailable: () => {
@@ -89,6 +98,7 @@ export function AuthProvider({ children }) {
     restoreSession();
     return () => {
       active = false;
+      restoreSessionRef.current = null;
       channel.close();
       if (sessionChannel.current === channel) sessionChannel.current = null;
     };
@@ -104,6 +114,7 @@ export function AuthProvider({ children }) {
       JSON.stringify(nextSession),
     );
     setSession(nextSession);
+    setSessionError("");
     setIsLoading(false);
     sessionChannel.current?.announceSession();
   }, []);
@@ -136,13 +147,15 @@ export function AuthProvider({ children }) {
       user: session?.user ?? null,
       token: session?.token ?? null,
       isLoading,
+      sessionError,
+      retrySession,
       isAuthenticated: Boolean(session?.token),
       login,
       logout,
       apiFetch,
       updateUser,
     }),
-    [apiFetch, isLoading, login, logout, session, updateUser],
+    [apiFetch, isLoading, login, logout, session, sessionError, retrySession, updateUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
