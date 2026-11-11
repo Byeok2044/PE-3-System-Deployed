@@ -59,6 +59,65 @@
   gap: 0.75rem;
 }
 
+.academic-import-heading {
+  align-items: center;
+}
+
+.academic-upload-format {
+  margin-bottom: 1rem;
+  border: 1px solid #dce7f0;
+  border-radius: 8px;
+  background: #f8fbfe;
+}
+
+.academic-upload-format summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  color: #29465f;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.academic-upload-format summary::-webkit-details-marker {
+  display: none;
+}
+
+.academic-upload-format summary::after {
+  content: "+";
+  color: #0c56ab;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.academic-upload-format[open] summary::after {
+  content: "\2212";
+}
+
+.academic-upload-format summary:focus-visible {
+  outline: 2px solid #0c5bb4;
+  outline-offset: 2px;
+}
+
+.academic-upload-format-content {
+  padding: 0.1rem 1rem 0.75rem;
+  border-top: 1px solid #e1e9f0;
+}
+
+.academic-upload-format-content p {
+  margin: 0.55rem 0 0;
+}
+
+.academic-upload-format-content code {
+  overflow-wrap: anywhere;
+  color: #18324b;
+  font-size: 0.8rem;
+}
+
 /* Status / Provenance Tag */
 .academic-source-badge {
   display: inline-flex;
@@ -133,6 +192,95 @@
   margin: 0.8rem 0;
   width: 100%;
   box-sizing: border-box;
+}
+
+.academic-csv-upload-form {
+  align-items: flex-end;
+}
+
+.academic-file-field {
+  display: flex;
+  flex: 1 1 210px;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-self: stretch;
+  justify-content: center;
+  min-width: 0;
+  color: #29465f;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.academic-file-field > label:first-child {
+  display: block;
+  flex: none;
+}
+
+.academic-file-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 40px;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.4rem;
+  border: 1px solid #c6d6e5;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.academic-form input[type="file"].academic-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.academic-form .academic-file-picker-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 0.5rem;
+  border: 1px solid #d8e2ea;
+  border-radius: 6px;
+  background: #eef3f7;
+  color: #526b82;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.academic-file-picker-button:hover {
+  background: #e3ebf2;
+}
+
+.academic-file-input:focus-visible + .academic-file-picker-button {
+  outline: 2px solid #0c5bb4;
+  outline-offset: 2px;
+}
+
+.academic-file-input:disabled + .academic-file-picker-button {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.academic-file-name {
+  min-width: 0;
+  overflow: hidden;
+  color: #18324b;
+  font-family: inherit;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .academic-form label {

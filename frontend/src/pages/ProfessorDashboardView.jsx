@@ -27,7 +27,7 @@ export default function ProfessorDashboardView({ user, activeTab }) {
   if (activeTab === "history" || activeTab === "connections") return null;
 
   if (activeTab === "data") {
-    return <section className="workspace-section academic-workspace" id="data"><div className="section-heading"><div><p className="dashboard-eyebrow">Class workspace</p><h2>Student academic records</h2></div></div><AcademicCsvImport onImported={() => setImportRevision(value => value + 1)} /><ConnectedStudentData key={importRevision} /></section>;
+    return <section className="workspace-section academic-workspace" id="data"><div className="section-heading"><div><p className="dashboard-eyebrow">Class Workspace</p><h2>Student Academic Records</h2></div></div><AcademicCsvImport onImported={() => setImportRevision(value => value + 1)} /><ConnectedStudentData key={importRevision} /></section>;
   }
 
   if (activeTab === "insights") {

@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import "../styles/AcademicWorkspace.css";
 
 export default function AcademicCsvImport({ onImported }) {
   const { apiFetch } = useAuth();
+  const fileInputId = useId();
   const [file, setFile] = useState(null);
   const [reason, setReason] = useState("");
   const [preview, setPreview] = useState(null);
@@ -41,13 +42,28 @@ export default function AcademicCsvImport({ onImported }) {
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   return <section className="academic-panel academic-import">
-    <div className="academic-panel-heading"><div><p className="dashboard-eyebrow">Academic records</p><h3>Upload student records</h3></div><button type="button" className="connection-button" onClick={downloadTemplate} disabled={busy}>Download CSV template</button></div>
-    <p>Upload one source semester per file, up to 500 students and 1 MB. Each student must have an accepted connection and designate you as the provider for that period.</p>
-    <p className="academic-help">Columns: studentEmail, academicYear, semester, previousSemesterGrade, gradeMaximum, previousSemesterUnitsEnrolled, previousSemesterUnitsApproved, attendance. Scales: 4, 5, 20, 100. Schedule: day or night. All grades and units must describe the same source semester.</p>
-    <form className="academic-form" onSubmit={upload}>
-      <label>Student records CSV<input type="file" accept=".csv,text/csv" required disabled={busy} onChange={event => { setFile(event.target.files?.[0] || null); setPreview(null); setResult(null); }} /></label>
+    <div className="academic-panel-heading academic-import-heading"><div><p className="dashboard-eyebrow">Academic Records</p><h2>Upload Student Records</h2></div><button type="button" className="connection-button" onClick={downloadTemplate} disabled={busy}>Download CSV Template</button></div>
+    <details className="academic-upload-format">
+      <summary>Student Record CSV Upload Format</summary>
+      <div className="academic-upload-format-content">
+        <p><strong>File:</strong> One source semester per file, up to 500 students and 1 MB.</p>
+        <p><strong>Requirement:</strong> Each student must have an accepted connection and designated you as the provider for that period.</p>
+        <p><strong>CSV Column Headers:</strong> studentEmail, academicYear, semester, previousSemesterGrade, gradeMaximum, previousSemesterUnitsEnrolled, previousSemesterUnitsApproved, attendance</p>
+        <p><strong>CSV Column Values:</strong> studentEmail <strong>must match</strong> the student's email; academicYear must be in <strong>YYYY-YYYY</strong> format; semester must be <strong>1</strong> or <strong>2</strong>; previousSemesterGrade and gradeMaximum must be numeric (<strong>gradeMaximum scales:</strong> 4, 5, 20, or 100); previousSemesterUnitsEnrolled and previousSemesterUnitsApproved must be numeric; attendance must be <strong>"day"</strong> or <strong>"evening"</strong>.</p>
+        <p><strong>Note :</strong> All grades and units must describe the same source semester.</p>
+      </div>
+    </details>
+    <form className="academic-form academic-csv-upload-form" onSubmit={upload}>
+      <div className="academic-file-field">
+        <label htmlFor={fileInputId}>Student records CSV</label>
+        <div className="academic-file-picker">
+          <input id={fileInputId} className="academic-file-input" type="file" accept=".csv,text/csv" required disabled={busy} aria-label="Student records CSV" onChange={event => { setFile(event.target.files?.[0] || null); setPreview(null); setResult(null); }} />
+          <label className="academic-file-picker-button" htmlFor={fileInputId}>Choose File</label>
+          <span className="academic-file-name" aria-live="polite">{file?.name || "No File Selected"}</span>
+        </div>
+      </div>
       <label>Correction reason (required for replacements)<input value={reason} maxLength={500} disabled={busy} onChange={event => { setReason(event.target.value); setPreview(null); }} placeholder="Explain the correction" /></label>
-      <button className="dashboard-action" disabled={busy || !file}>{busy ? "Processing..." : "Validate and preview"}</button>
+      <button className="dashboard-action" disabled={busy || !file}>{busy ? "Processing..." : "Validate and Preview"}</button>
     </form>
     {error && <p role="alert" className="academic-notice academic-notice--error">{error}</p>}
     {result && <p role="status" className="academic-notice">{result.message} New: {result.created}; corrected: {result.corrected}; unchanged: {result.unchanged}.</p>}
