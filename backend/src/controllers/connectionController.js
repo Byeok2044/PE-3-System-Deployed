@@ -2,7 +2,8 @@ const StudentProfessorConnection = require('../models/StudentProfessorConnection
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const Conversation = require('../models/Conversation');
-const { participantsShareInstitution } = require('../utils/institutionAccess');
+const history = require('../utils/professorHistory');
+const { fail } = require('../utils/academicValidation');
 
 const sameInstitution = (first, second) => {
   const normalizedFirst = String(first || '').trim().toLocaleLowerCase();
@@ -127,50 +128,46 @@ exports.requestConnection = async (req, res, next) => {
 
 exports.respondToConnection = async (req, res, next) => {
   try {
-    if (req.user.role !== 'professor') {
-      return res.status(403).json({ message: 'Only professors can respond to connection requests.' });
-    }
-    const action = req.body.action;
-    if (!['accept', 'decline'].includes(action)) {
-      return res.status(400).json({ message: 'Choose whether to accept or decline the request.' });
-    }
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ message: 'Invalid connection request.' });
-    }
-
-    const connection = await StudentProfessorConnection.findOne({ _id: req.params.id, professor: req.user._id })
-      .populate('student', 'fullName email institution');
-    if (!connection) return res.status(404).json({ message: 'Connection request not found.' });
-    if (connection.status !== 'pending') return res.status(409).json({ message: 'This request has already been handled.' });
-    if (action === 'accept' && !await participantsShareInstitution(connection.student._id, req.user._id)) {
-      return res.status(403).json({ message: 'You can only accept students at your current institution.' });
-    }
-
-    connection.status = action === 'accept' ? 'accepted' : 'declined';
-    await connection.save();
-    return res.status(200).json({ message: `Request ${connection.status}.`, connection: connectionForProfessor(connection) });
-  } catch (error) {
-    next(error);
-  }
+    if (req.user.role !== 'professor') throw fail('Only professors can respond to connection requests.', 403);
+    const action = req.body?.action;
+    if (!['accept', 'decline'].includes(action)) throw fail('Choose whether to accept or decline the request.');
+    if (!mongoose.isValidObjectId(req.params.id)) throw fail('Invalid connection request.');
+    const result = await history.withTransaction(async session => {
+      const connection = await StudentProfessorConnection.findOne({ _id: req.params.id, professor: req.user._id }).session(session);
+      if (!connection) throw fail('Connection request not found.', 404);
+      if (connection.status !== 'pending') throw fail('This request has already been handled.', 409);
+      const professor = await User.findOneAndUpdate({ _id: req.user._id, role: 'professor' }, { $inc: { academicAccessRevision: 1 } }, { new: true, session });
+      const student = await User.findOneAndUpdate({ _id: connection.student, role: 'student' }, { $inc: { academicAccessRevision: 1 } }, { new: true, session });
+      if (!professor || !student) throw fail('The connection participants are no longer available.', 404);
+      if (action === 'accept' && !sameInstitution(student.institution, professor.institution)) throw fail('You can only accept students at your current institution.', 403);
+      const status = action === 'accept' ? 'accepted' : 'declined';
+      await history.recordConnection({ connection, actor: professor, student, professor, action: status }, session);
+      connection.status = status; connection.academicAccessRevision = (connection.academicAccessRevision || 0) + 1;
+      await connection.save({ session });
+      return { ...connection.toObject(), student };
+    });
+    res.status(200).json({ message: `Request ${result.status}.`, connection: connectionForProfessor(result) });
+  } catch (error) { next(error); }
 };
 
 exports.removeConnection = async (req, res, next) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.id)) {
-      return res.status(400).json({ message: 'Invalid connection request.' });
-    }
+    if (!mongoose.isValidObjectId(req.params.id)) throw fail('Invalid connection request.');
     const filter = req.user.role === 'student'
       ? { _id: req.params.id, student: req.user._id }
-      : req.user.role === 'professor'
-        ? { _id: req.params.id, professor: req.user._id }
-        : null;
-    if (!filter) return res.status(403).json({ message: 'Only students and professors can manage connections.' });
-
-    const connection = await StudentProfessorConnection.findOneAndDelete(filter);
-    if (!connection) return res.status(404).json({ message: 'Connection not found.' });
-    await Conversation.updateMany({ connection: connection._id, state: 'open' }, { $set: { state: 'closed', closedAt: new Date() } });
-    return res.status(200).json({ message: 'Connection removed.' });
-  } catch (error) {
-    next(error);
-  }
+      : req.user.role === 'professor' ? { _id: req.params.id, professor: req.user._id } : null;
+    if (!filter) throw fail('Only students and professors can manage connections.', 403);
+    await history.withTransaction(async session => {
+      const connection = await StudentProfessorConnection.findOneAndDelete(filter).session(session);
+      if (!connection) throw fail('Connection not found.', 404);
+      const professor = await User.findOneAndUpdate({ _id: connection.professor }, { $inc: { academicAccessRevision: 1 } }, { new: true, session });
+      const student = await User.findOneAndUpdate({ _id: connection.student }, { $inc: { academicAccessRevision: 1 } }, { new: true, session });
+      const professorSnapshot = professor || { _id: connection.professor, fullName: 'Account unavailable', institution: req.user.institution, role: 'professor' };
+      const studentSnapshot = student || { _id: connection.student, fullName: 'Account unavailable', role: 'student' };
+      await history.recordConnection({ connection, actor: req.user.role === 'student' ? studentSnapshot : professorSnapshot,
+        student: studentSnapshot, professor: professorSnapshot, action: 'removed' }, session);
+      await Conversation.updateMany({ connection: connection._id, state: 'open' }, { $set: { state: 'closed', closedAt: new Date() } }, { session });
+    });
+    res.status(200).json({ message: 'Connection removed.' });
+  } catch (error) { next(error); }
 };

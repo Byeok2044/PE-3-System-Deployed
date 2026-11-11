@@ -1,0 +1,61 @@
+.professor-history { color:#18324b; }
+.professor-history-readonly { display:inline-flex; align-items:center; gap:.4rem; border:1px solid #d8e7f5; border-radius:99px; padding:.4rem .75rem; color:#42617c; font-size:.75rem; background:#f7faff; }
+.professor-history-summary { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:.85rem; margin:1.4rem 0; }
+.professor-history-summary article { display:flex; align-items:center; gap:.8rem; padding:1.1rem; background:#fff; border:1px solid #e1eaf1; border-radius:10px; }
+.professor-history-summary article div { min-width:0; display:grid; gap:.2rem; }
+.professor-history-summary article strong { font-size:1.45rem; line-height:1.2; color:#18324b; }
+.professor-history-summary article div span { color:#64788e; font-size:.74rem; line-height:1.4; }
+.professor-history-icon { display:grid; place-items:center; width:39px; height:39px; border-radius:9px; flex-shrink:0; }
+.professor-history-icon.blue { background:#e9f2fe; color:#0c5bb4; }
+.professor-history-icon.amber { background:#fff3dc; color:#b36b09; }
+.professor-history-icon.green { background:#e7f5ee; color:#237a58; }
+.professor-history-filters { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.9rem; border:1px solid #e1eaf1; border-radius:10px; padding:1.2rem; background:#fff; margin-bottom:1.2rem; }
+.professor-history-filters label { display:flex; flex-direction:column; gap:.4rem; font-size:.76rem; font-weight:600; color:#526b82; min-width:0; }
+.professor-history-filters input,.professor-history-filters select { box-sizing:border-box; width:100%; min-height:41px; border:1px solid #cfdae5; border-radius:7px; padding:.6rem .7rem; background:#fff; color:#29465f; font:inherit; }
+.professor-history-search { grid-column:span 2; }
+.professor-history-search span { position:relative; display:flex; align-items:center; }
+.professor-history-search svg { position:absolute; left:.7rem; color:#718399; }
+.professor-history-search input { padding-left:2.1rem; }
+.professor-history-filters input:focus-visible,.professor-history-filters select:focus-visible { outline:2px solid #3e82c4; outline-offset:2px; }
+.professor-history-filter-actions { display:flex; gap:.6rem; align-items:end; flex-wrap:wrap; }
+.professor-history-filter-actions button { min-height:41px; }
+.professor-history-list-heading { display:flex; align-items:center; justify-content:space-between; gap:.7rem; margin-bottom:1rem; }
+.professor-history-list-heading p,.professor-history-pagination { font-size:.8rem; color:#64788e; }
+.professor-history-list { list-style:none; padding:0; margin:0; display:grid; gap:.8rem; }
+.professor-history-item { border:1px solid #e1eaf1; border-radius:10px; background:white; overflow:hidden; box-shadow:0 1px 3px rgba(16,43,74,.02); }
+.professor-history-item summary { display:flex; gap:1rem; align-items:center; padding:1.15rem; list-style:none; cursor:pointer; }
+.professor-history-item summary::-webkit-details-marker { display:none; }
+.professor-history-item summary:focus-visible { outline:2px solid #3e82c4; outline-offset:-3px; }
+.professor-history-event-heading { display:grid; gap:.3rem; flex:1; min-width:0; }
+.professor-history-event-heading strong { font-size:.89rem; font-weight:700; }
+.professor-history-event-heading>span { color:#718399; font-size:.76rem; overflow-wrap:anywhere; }
+.professor-history-event-date { display:grid; gap:.3rem; color:#718399; text-align:right; font-size:.72rem; }
+.professor-history-event-date small { font-size:.7rem; }
+.professor-history-chevron { flex-shrink:0; color:#718399; transition:transform .15s; }
+.professor-history-item details[open] .professor-history-chevron { transform:rotate(180deg); }
+.professor-history-details { border-top:1px solid #edf1f5; padding:1.2rem; font-size:.82rem; line-height:1.65; }
+.professor-history-metadata { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.9rem 1.5rem; margin:0 0 1rem; }
+.professor-history-metadata dt { color:#718399; font-size:.74rem; margin-bottom:.2rem; }
+.professor-history-metadata dd { margin:0; font-weight:600; overflow-wrap:anywhere; }
+.professor-history-import-counts { display:flex; gap:.7rem; flex-wrap:wrap; margin:1rem 0; }
+.professor-history-import-counts span { background:#f4f8fc; border-radius:7px; padding:.65rem 1rem; color:#526b82; }
+.professor-history-import-counts strong { color:#18324b; margin-right:.3rem; }
+.professor-history-reference,.professor-history-muted { color:#718399; font-size:.76rem; overflow-wrap:anywhere; }
+.professor-history-reference code { font-size:.75rem; }
+.professor-history-table-scroll { overflow-x:auto; margin:1rem 0; }
+.professor-history-details table { width:100%; border-collapse:collapse; text-align:left; font-size:.8rem; }
+.professor-history-details caption { text-align:left; color:#526b82; font-weight:600; margin-bottom:.5rem; }
+.professor-history-details th,.professor-history-details td { border:1px solid #e1eaf1; padding:.65rem .8rem; }
+.professor-history-details thead th { background:#f4f8fc; }
+.professor-history-risk { display:inline-block; padding:.15rem .6rem; border-radius:99px; text-transform:capitalize; font-size:.75rem; }
+.professor-history-risk.low { background:#e7f5ee; color:#237a58; }
+.professor-history-risk.medium { background:#fff3dc; color:#9c600d; }
+.professor-history-risk.high { background:#fff0ef; color:#b13934; }
+.professor-history-empty { text-align:center; padding:2.8rem 1rem; border:1px dashed #cfdae5; border-radius:10px; color:#718399; background:#fafcff; }
+.professor-history-empty h3 { color:#29465f; font-size:1rem; margin:.7rem 0 .4rem; }
+.professor-history-empty p { font-size:.82rem; max-width:540px; margin:0 auto; line-height:1.65; }
+.professor-history-pagination { display:flex; justify-content:flex-end; align-items:center; gap:1rem; margin-top:1.2rem; }
+.professor-history button:disabled { opacity:.55; cursor:not-allowed; }
+@media(max-width:1100px) { .professor-history-summary { grid-template-columns:repeat(3,minmax(0,1fr)); } .professor-history-filters { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:700px) { .professor-history-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } .professor-history-filters { grid-template-columns:repeat(2,minmax(0,1fr)); padding:.9rem; } .professor-history-filter-actions { grid-column:span 2; } .professor-history-item summary { flex-wrap:wrap; padding:1rem; gap:.7rem; } .professor-history-event-date { flex-basis:100%; text-align:left; padding-left:calc(39px + .7rem); } .professor-history-chevron { margin-left:auto; } }
+@media(max-width:420px) { .professor-history-summary article { padding:.8rem; gap:.5rem; } .professor-history-icon { width:32px; height:32px; } .professor-history-metadata { grid-template-columns:1fr; } .professor-history-readonly { margin-top:.6rem; } }

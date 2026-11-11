@@ -18,6 +18,7 @@ const studentRecordSchema = new mongoose.Schema(
 
     // --- Academic characteristics ---
     profileVersion: { type: Number, default: 0 },
+    historyReadRevision: { type: Number, default: 0 },
     legacyAcademicSource: { type: String, enum: ['legacy_self_reported'] },
     attendance: {
       type: String,

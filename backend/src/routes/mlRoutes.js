@@ -7,6 +7,7 @@ const workspaceService = require('../utils/academicWorkspace');
 const { pick } = workspaceService;
 const { ACADEMIC_FIELDS, PROFILE_FIELDS, fail } = require('../utils/academicValidation');
 const { sendRiskAlerts } = require('../utils/riskAlertNotifications');
+const professorHistory = require('../utils/professorHistory');
 const router = express.Router();
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 
@@ -21,9 +22,7 @@ async function predictMyRecord(req, res, next) {
     const currentUser = await User.findById(req.user._id);
     const current = await workspaceService.loadWorkspace(currentUser, { includeForecast: false });
     if (current.inputVersion !== workspace.inputVersion) throw fail('Your inputs changed while forecasting. Run a new forecast.', 409);
-    const activity = await StudentActivity.create({ student: req.user._id, type: 'forecast_run', record: workspace.record, forecast: data,
-      inputVersion: workspace.inputVersion, academicRecord: workspace.record.academicRecordId,
-      academicVersion: workspace.record.academicVersion, profileVersion: workspace.profile.profileVersion });
+    const activity = await professorHistory.saveForecastActivity(currentUser, workspace, data);
     try { await sendRiskAlerts(currentUser, data, { inputVersion: workspace.inputVersion, forecastId: activity._id }); }
     catch (error) { console.error('Unable to send risk alert emails:', error.message); }
     res.json({ ...data, activity: { id: activity._id, forecast: data, record: workspace.record, inputVersion: workspace.inputVersion, createdAt: activity.createdAt } });

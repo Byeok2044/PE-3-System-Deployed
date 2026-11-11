@@ -8,6 +8,7 @@ const Activity = require('../src/models/StudentActivity');
 const Academic = require('../src/models/AcademicRecord');
 const Batch = require('../src/models/AcademicImportBatch');
 const Revision = require('../src/models/AcademicRecordRevision');
+const ProfessorHistoryEvent = require('../src/models/ProfessorHistoryEvent');
 const { configureMongoDns, checkMongoSrv } = require('../src/config/mongoDns');
 const { formatMigrationError } = require('../src/utils/migrationDiagnostics');
 let phase = 'configuration';
@@ -43,7 +44,7 @@ async function main() {
     finally { await handle.close(); }
   }
   phase = 'academic indexes';
-  for (const model of [Academic, Batch, Revision]) {
+  for (const model of [Academic, Batch, Revision, ProfessorHistoryEvent]) {
     await model.createCollection();
     await model.createIndexes();
   }
