@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import useAdaptivePolling from "../hooks/useAdaptivePolling";
 import { READINESS_MESSAGES } from "../pages/StudentDataForm";
@@ -9,6 +9,9 @@ function ProviderTransfer({ item, onChanged }) {
   const [target, setTarget] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
   const academic = item.academic;
   if (!academic) return null;
 
@@ -19,6 +22,19 @@ function ProviderTransfer({ item, onChanged }) {
   const eligibleProviders = (item.providers || []).filter(
     (provider) => provider.id !== String(academic.provider?._id)
   );
+
+  const selectedTargetProvider = eligibleProviders.find((p) => p.id === target);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const transfer = async (action) => {
     setBusy(true);
@@ -81,19 +97,49 @@ function ProviderTransfer({ item, onChanged }) {
         <div className="academic-transfer-box">
           <label className="academic-transfer-label">Transfer Provider Responsibility</label>
           <div className="academic-transfer-row">
-            <select
-              className="academic-transfer-select"
-              value={target}
-              disabled={busy}
-              onChange={(event) => setTarget(event.target.value)}
-            >
-              <option value="">Select a connected professor to transfer to...</option>
-              {eligibleProviders.map((provider) => (
-                <option key={provider.id} value={provider.id}>
-                  {provider.fullName}
-                </option>
-              ))}
-            </select>
+            {/* Custom Dropdown Trigger */}
+            <div className="transfer-custom-picker" ref={dropdownRef}>
+              <div
+                className={`transfer-picker-trigger ${isOpen ? "is-open" : ""}`}
+                onClick={() => !busy && setIsOpen(!isOpen)}
+              >
+                <span className={selectedTargetProvider ? "picker-value" : "picker-placeholder"}>
+                  {selectedTargetProvider ? selectedTargetProvider.fullName : "Choose professor..."}
+                </span>
+                <svg
+                  className={`picker-chevron ${isOpen ? "is-open" : ""}`}
+                  width="16"
+                  height="16"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a11.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+
+              {/* Floating Menu */}
+              {isOpen && (
+                <div className="transfer-picker-menu">
+                  {eligibleProviders.map((provider) => (
+                    <div
+                      key={provider.id}
+                      className={`transfer-picker-option ${target === provider.id ? "selected" : ""}`}
+                      onClick={() => {
+                        setTarget(provider.id);
+                        setIsOpen(false);
+                      }}
+                    >
+                      <span className="transfer-picker-option-name">{provider.fullName}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
               type="button"
               className="connection-button"
@@ -138,7 +184,6 @@ export default function ConnectedStudentData() {
 
   useAdaptivePolling(refresh, { intervalMs: 15000 });
 
-  // Filter students by Name or Email
   const filteredStudents = useMemo(() => {
     const term = searchQuery.trim().toLowerCase();
     if (!term) return students;
@@ -167,7 +212,6 @@ export default function ConnectedStudentData() {
         Review student sources for accuracy and use risk forecasts to guide supportive academic conversations.
       </p>
 
-      {/* Interactive Search Bar */}
       {students.length > 0 && (
         <div className="student-search-bar-wrapper">
           <div className="student-search-input-box">
@@ -224,13 +268,9 @@ export default function ConnectedStudentData() {
       <div className="connected-students-list">
         {filteredStudents.map((item) => (
           <article className="connected-student-card" key={item.student.id}>
-            <div className="connected-student-card__header">
-              <div className="connected-student-card__meta">
-                <h3>{item.student.fullName}</h3>
-                <p>
-                  {item.student.email} · {READINESS_MESSAGES[item.readiness]}
-                </p>
-              </div>
+            {/* Pinned Top Row: Name on Left, Badge on Right */}
+            <div className="connected-student-card__top">
+              <h3 className="connected-student-name">{item.student.fullName}</h3>
               <span
                 className={`academic-source-badge ${
                   item.record ? "badge--success" : "badge--pending"
@@ -239,6 +279,11 @@ export default function ConnectedStudentData() {
                 {item.record ? "Record Uploaded" : "Awaiting Record"}
               </span>
             </div>
+
+            {/* Email and Readiness Message Below */}
+            <p className="connected-student-subtext">
+              <strong>{item.student.email}</strong> · {READINESS_MESSAGES[item.readiness]}
+            </p>
 
             {item.academic && (
               <p className="academic-provenance">

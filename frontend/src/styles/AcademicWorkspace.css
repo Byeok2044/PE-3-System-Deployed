@@ -63,6 +63,7 @@
   gap: 1rem;
   width: 100%;
   box-sizing: border-box;
+  flex-wrap: wrap;
 }
 
 .academic-panel-heading h2 {
@@ -98,6 +99,7 @@
   font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .academic-source-badge.badge--success {
@@ -117,6 +119,7 @@
   font-size: 0.82rem;
   color: var(--slate-600);
   line-height: 1.5;
+  word-break: break-word;
 }
 
 /* ==========================================================================
@@ -157,7 +160,7 @@
 }
 
 /* ==========================================================================
-   CSV Upload Form Grid: Balanced Heights & Alignment
+   CSV Upload Form Grid
    ========================================================================== */
 .academic-csv-upload-form {
   display: grid;
@@ -340,7 +343,7 @@
 
 /* ==========================================================================
    Notice Banners & Alerts
-   ========================================================================== */
+   ========================================================================= */
 .academic-notice {
   padding: 0.85rem 1rem;
   background: var(--primary-50);
@@ -527,26 +530,40 @@
   background: #ffffff;
   box-shadow: var(--shadow-subtle);
   box-sizing: border-box;
+  width: 100%;
+  overflow: hidden;
 }
 
-.connected-student-card__header {
+/* Pinned Header Row: Title on Left, Badge on Right */
+.connected-student-card__top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.65rem;
+  width: 100%;
 }
 
-.connected-student-card__meta h3 {
+.connected-student-name {
   margin: 0;
   font-size: 1.05rem;
   color: var(--slate-900);
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.connected-student-card__meta p {
-  margin: 0.15rem 0 0;
+.connected-student-card__top .academic-source-badge {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.connected-student-subtext {
+  margin: -0.35rem 0 0;
   font-size: 0.78rem;
   color: var(--slate-500);
+  line-height: 1.45;
+  word-break: break-word;
 }
 
 /* 4-Tile Grid for Student Academic Metrics */
@@ -592,13 +609,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
   padding: 0.75rem 1rem;
   border-radius: var(--radius-sm);
   background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
   border: 1px solid var(--primary-100);
   font-size: 0.82rem;
   color: var(--slate-700);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .student-forecast-badge strong {
@@ -606,7 +626,7 @@
 }
 
 /* ==========================================================================
-   Clean Transfer Control Box
+   Clean Transfer Control Box & Custom Dropdown Picker
    ========================================================================== */
 .academic-transfer-container {
   display: flex;
@@ -621,7 +641,7 @@
 .academic-transfer-box {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.45rem;
   width: 100%;
   padding: 0.75rem 0.85rem;
   background: var(--slate-50);
@@ -631,7 +651,7 @@
 }
 
 .academic-transfer-label {
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   font-weight: 700;
   text-transform: uppercase;
   color: var(--slate-500);
@@ -646,25 +666,115 @@
   box-sizing: border-box;
 }
 
-.academic-transfer-select {
+/* Custom Dropdown Trigger Container */
+.transfer-custom-picker {
+  position: relative;
   flex: 1;
-  min-height: 40px !important;
-  height: 40px !important;
-  padding: 0 0.75rem;
-  font-size: 0.84rem;
-  color: var(--slate-800);
-  background: #ffffff;
-  border: 1.5px solid var(--slate-200);
-  border-radius: var(--radius-sm);
-  outline: none;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  min-width: 0;
+  width: 100%;
   box-sizing: border-box;
 }
 
-.academic-transfer-select:focus {
+.transfer-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 0.75rem;
+  background: #ffffff;
+  border: 1.5px solid var(--slate-200);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.transfer-picker-trigger:hover {
+  border-color: var(--primary-200);
+}
+
+.transfer-picker-trigger.is-open {
   border-color: var(--primary-500);
   box-shadow: 0 0 0 3px rgba(12, 91, 180, 0.12);
+}
+
+.picker-value {
+  font-size: 0.84rem;
+  color: var(--slate-900);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-placeholder {
+  font-size: 0.82rem;
+  color: var(--slate-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-chevron {
+  color: var(--slate-400);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.picker-chevron.is-open {
+  transform: rotate(180deg);
+  color: var(--primary-500);
+}
+
+/* Floating Dropdown Menu */
+.transfer-picker-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 100%;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12);
+  z-index: 50;
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  box-sizing: border-box;
+}
+
+.transfer-picker-option {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.65rem;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  width: 100%;
+  box-sizing: border-box;
+  transition: background 0.12s ease;
+}
+
+.transfer-picker-option:hover {
+  background: var(--slate-100);
+}
+
+.transfer-picker-option.selected {
+  background: var(--primary-50);
+}
+
+.transfer-picker-option-name {
+  font-size: 0.82rem;
+  color: var(--slate-800);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .academic-transfer-notice {
@@ -719,17 +829,55 @@
   .professor-student-metrics {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* Mobile Screens (< 680px) */
+@media (max-width: 680px) {
   .academic-transfer-row {
     flex-direction: column;
     align-items: stretch;
   }
-  .academic-transfer-row select,
   .academic-transfer-row button {
     width: 100%;
+    height: 40px;
   }
   .academic-transfer-notice,
   .academic-transfer-action-strip {
     flex-direction: column;
     align-items: stretch;
+  }
+}
+
+/* Narrow Mobile Screens (< 480px) */
+@media (max-width: 480px) {
+  .academic-panel {
+    padding: 1rem 0.85rem;
+  }
+
+  .academic-panel-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .connected-student-card {
+    padding: 1rem 0.85rem;
+  }
+
+  .student-forecast-badge {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .student-search-input {
+    font-size: 0.8rem;
+    padding-left: 2.35rem;
+  }
+
+  .student-search-icon {
+    left: 0.75rem;
+    width: 16px;
+    height: 16px;
   }
 }
