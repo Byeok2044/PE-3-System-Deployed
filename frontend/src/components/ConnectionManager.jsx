@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, Clock3, Link2, MessageCircle, Search, Trash2, UserPlus, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -20,7 +20,47 @@ export default function ConnectionManager({ onNavigateTab }) {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [connectionToRemove, setConnectionToRemove] = useState(null);
+  const [removeError, setRemoveError] = useState("");
+  const removeDialogRef = useRef(null);
+  const cancelRemovalRef = useRef(null);
+  const removalInFlight = useRef(false);
   const isStudent = user?.role === "student";
+
+  const closeRemoveDialog = () => {
+    if (removalInFlight.current) return;
+    setConnectionToRemove(null);
+    setRemoveError("");
+  };
+
+  useEffect(() => {
+    if (!connectionToRemove) return undefined;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    cancelRemovalRef.current?.focus();
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (!removalInFlight.current) { setConnectionToRemove(null); setRemoveError(""); }
+      }
+      if (event.key !== "Tab") return;
+      const buttons = removeDialogRef.current?.querySelectorAll("button:not(:disabled)");
+      if (!buttons?.length) { event.preventDefault(); removeDialogRef.current?.focus(); return; }
+      const first = buttons[0]; const last = buttons[buttons.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !removeDialogRef.current.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !removeDialogRef.current.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [connectionToRemove]);
 
   const loadConnections = async (background = false) => {
     if (!background) { setIsLoading(true); setError(""); }
@@ -118,18 +158,25 @@ export default function ConnectionManager({ onNavigateTab }) {
     }
   };
 
-  const remove = async (id) => {
+  const remove = async () => {
+    if (!connectionToRemove || removalInFlight.current) return;
+    const id = connectionToRemove.id;
+    removalInFlight.current = true;
     setIsSaving(true);
     setError("");
+    setMessage("");
+    setRemoveError("");
     try {
       const response = await apiFetch(`/api/connections/${id}`, { method: "DELETE" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message || "Could not remove the connection.");
       setConnections((current) => current.filter((item) => item.id !== id));
       setMessage("Connection removed.");
+      setConnectionToRemove(null);
     } catch (requestError) {
-      setError(requestError.message || "Could not remove the connection.");
+      setRemoveError(requestError.message || "Could not remove the connection.");
     } finally {
+      removalInFlight.current = false;
       setIsSaving(false);
     }
   };
@@ -300,7 +347,7 @@ export default function ConnectionManager({ onNavigateTab }) {
                       <button
                         type="button"
                         className="connection-remove"
-                        onClick={() => remove(connection.id)}
+                        onClick={() => { setRemoveError(""); setConnectionToRemove(connection); }}
                         disabled={isSaving}
                         aria-label={`Remove connection with ${person?.fullName}`}
                       >
@@ -313,6 +360,30 @@ export default function ConnectionManager({ onNavigateTab }) {
             );
           })}
         </ul>
+      )}
+      {connectionToRemove && (
+        <div className="risk-pop-backdrop" style={{ zIndex: 1200 }} onClick={closeRemoveDialog}>
+          <div ref={removeDialogRef} className="risk-pop-modal" style={{ maxWidth: "400px", textAlign: "center" }}
+            role="dialog" aria-modal="true" aria-labelledby="remove-connection-title" aria-describedby="remove-connection-description"
+            aria-busy={isSaving} tabIndex={-1} onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="risk-pop-close" onClick={closeRemoveDialog} disabled={isSaving} aria-label="Close remove connection confirmation">
+              <X size={18} />
+            </button>
+            <div className="risk-pop-icon red" style={{ margin: "0 auto 1rem" }} aria-hidden="true"><Trash2 size={26} /></div>
+            <h3 id="remove-connection-title" style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Confirm Remove Connection</h3>
+            <p id="remove-connection-description" style={{ color: "#64748b", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
+              Are you sure you want to remove your connection with <strong>{(isStudent ? connectionToRemove.professor : connectionToRemove.student)?.fullName || "this person"}</strong>?
+              {connectionToRemove.status === "accepted" ? " Shared workspace access will end and your conversation will be closed." : connectionToRemove.status === "pending" ? " This will cancel the pending connection request." : " This will remove the request from your connections."}
+            </p>
+            {removeError && <p className="connection-message connection-message--error" role="alert">{removeError}</p>}
+            <div className="risk-pop-actions" style={{ justifyContent: "center" }}>
+              <button type="button" className="risk-pop-action-btn red" style={{ backgroundColor: "#ef4444", color: "#ffffff", minWidth: "120px" }} onClick={remove} disabled={isSaving}>
+                {isSaving ? "Removing..." : "Remove Connection"}
+              </button>
+              <button ref={cancelRemovalRef} type="button" className="risk-pop-dismiss-btn" onClick={closeRemoveDialog} disabled={isSaving}>Cancel</button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );

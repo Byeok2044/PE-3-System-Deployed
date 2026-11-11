@@ -1,0 +1,2 @@
+studentEmail,academicYear,semester,previousSemesterGrade,gradeMaximum,previousSemesterUnitsEnrolled,previousSemesterUnitsApproved,attendance
+replace-with-student-email@example.com,2025-2026,2,2.25,5,24,21,day
