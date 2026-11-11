@@ -907,8 +907,29 @@ export default function Dashboard() {
               <strong>{user?.fullName || "User"}</strong>
               <small>{roleLabel}</small>
             </div>
-            <button type="button" onClick={handleLogoutClick} aria-label="Log out">
-              <LogOut size={17} />
+            <button
+              type="button"
+              onClick={handleLogoutClick}
+              aria-label="Log out"
+              title="Log out"
+              className="logout-topbar-button"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                padding: "6px 12px",
+                borderRadius: "6px",
+                border: "1px solid #e2e8f0",
+                backgroundColor: "#ffffff",
+                color: "#dc2626",
+                fontSize: "0.85rem",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <LogOut size={16} />
+              <span>Log out</span>
             </button>
           </div>
         </header>
