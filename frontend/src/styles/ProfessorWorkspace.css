@@ -1,0 +1,172 @@
+/* Match the spacing, surfaces and controls in StudentDataForm.css.
+   Keep these overrides scoped to the professor's Data Workspace. */
+.professor-workspace-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+  min-width: 0;
+  padding: .25rem 0;
+}
+
+.professor-workspace .academic-panel {
+  min-width: 0;
+  padding: 1.35rem 1.5rem;
+  gap: 1rem;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-subtle);
+}
+
+.professor-workspace .academic-panel-heading h2 { font-size: 1.15rem; }
+.professor-workspace .academic-panel-heading > div { min-width: 0; }
+.professor-workspace .academic-panel-subtitle { line-height: 1.5; }
+.professor-workspace .connected-students { margin-top: 0; }
+.professor-workspace .academic-template-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.professor-workspace .connection-button,
+.professor-workspace .dashboard-action {
+  gap: .4rem;
+  height: auto;
+  min-height: 40px;
+  font-family: inherit;
+  font-size: .84rem;
+  font-weight: 600;
+}
+.professor-workspace .connection-button { font-size: .8rem; }
+.professor-workspace .dashboard-action { padding: .6rem 1.25rem; }
+.professor-workspace .academic-form-group { min-width: 0; }
+.professor-workspace .academic-form-group > label { line-height: 1.4; }
+.professor-workspace .academic-field-optional { margin-left: .3rem; font-size: .74rem; font-weight: 400; color: var(--slate-500); }
+.professor-workspace .academic-field-help { color: var(--slate-500); font-size: .76rem; line-height: 1.45; }
+.professor-workspace .academic-input { min-width: 0; }
+.professor-workspace .academic-upload-format-content { overflow-wrap: anywhere; }
+.professor-workspace .academic-csv-upload-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 1.1rem 1.25rem;
+  margin: 0;
+}
+.professor-workspace .academic-import-section { grid-column: auto; }
+.professor-workspace .academic-import-file,
+.professor-workspace .academic-import-policy,
+.professor-workspace .academic-csv-upload-form > .academic-submit-row { grid-column: 1 / -1; }
+.professor-workspace .academic-upload-card {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  padding: 1.15rem;
+  min-width: 0;
+  background: linear-gradient(135deg, #f8fbff, #fff);
+  border: 1px dashed var(--primary-200);
+  border-radius: var(--radius-md);
+}
+.professor-workspace .academic-upload-card.has-file { border-style: solid; }
+.professor-workspace .academic-upload-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  color: var(--primary-500);
+  background: var(--primary-100);
+}
+.professor-workspace .academic-upload-description { display: flex; flex: 1; flex-direction: column; gap: .3rem; min-width: 0; }
+.professor-workspace .academic-upload-description strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9rem; color: var(--slate-900); }
+.professor-workspace .academic-upload-description span { font-size: .78rem; color: var(--slate-500); line-height: 1.5; }
+.professor-workspace .academic-file-control { position: relative; flex-shrink: 0; }
+.professor-workspace .academic-file-picker-button { gap: .4rem; height: 38px; font-size: .8rem; }
+.professor-workspace .academic-file-input:focus-visible + label { outline: 2px solid var(--primary-500); outline-offset: 3px; }
+.professor-workspace .academic-file-input:disabled + label { opacity: .6; cursor: not-allowed; }
+.professor-workspace .academic-import-options { align-items: flex-start; margin: 0; gap: .65rem; cursor: pointer; }
+.professor-workspace .academic-import-options input { flex: 0 0 auto; margin: .15rem 0 0; width: 16px; height: 16px; accent-color: var(--primary-500); }
+.professor-workspace .academic-import-options strong { display: block; color: var(--slate-700); font-size: .82rem; font-weight: 600; }
+.professor-workspace .academic-import-options small { display: block; color: var(--slate-500); font-size: .76rem; line-height: 1.5; margin-top: .2rem; }
+.professor-workspace .academic-submit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .75rem 1rem;
+  padding: .85rem 1.15rem;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  background: var(--slate-50);
+  margin: 0;
+}
+.professor-workspace .academic-submit-row p { flex: 1 1 240px; margin: 0; font-size: .82rem; line-height: 1.5; color: var(--slate-500); }
+.professor-workspace .academic-preview-errors { margin: .35rem 0 0; padding-left: 1rem; color: #b91c1c; }
+.professor-workspace .class-forecast-toolbar { margin: 0; align-items: end; }
+.professor-workspace .class-forecast-filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr); gap: 1rem; }
+.professor-workspace .class-forecast-summary { margin: 0; gap: .65rem; }
+.professor-workspace .class-forecast-summary article { padding: .85rem; border-radius: var(--radius-sm); background: var(--slate-50); }
+.professor-workspace .class-forecast-summary strong { font-size: 1.15rem; color: var(--slate-900); }
+.professor-workspace .class-forecast-summary span { font-size: .7rem; font-weight: 700; letter-spacing: .03em; color: var(--slate-500); }
+.professor-workspace .class-forecast-reference { margin: 0; padding: .8rem 1rem; border: 1px solid var(--primary-100); border-radius: var(--radius-sm); background: linear-gradient(135deg, #f8fbff, #fff); line-height: 1.6; }
+.professor-workspace .class-forecast-progress p { margin: .4rem 0 0; font-size: .78rem; }
+.professor-workspace .class-forecast-disclaimer { margin: 0; padding-top: .85rem; border-top: 1px solid var(--slate-200); }
+.professor-workspace .academic-table-scroll { width: 100%; min-width: 0; }
+.professor-workspace .academic-table-scroll table { width: 100%; border-collapse: collapse; text-align: left; font-size: .82rem; }
+.professor-workspace .academic-preview table { min-width: 720px; }
+.professor-workspace .academic-table-scroll th,
+.professor-workspace .academic-table-scroll td { padding: .85rem .95rem; border-bottom: 1px solid var(--slate-200); vertical-align: top; }
+.professor-workspace .academic-table-scroll th { background: var(--slate-50); font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; color: var(--slate-600); }
+.professor-workspace .academic-table-scroll tbody tr:last-child td { border-bottom: 0; }
+.professor-workspace .academic-table-scroll caption { padding: .85rem .95rem; border-bottom: 1px solid var(--slate-200); font-size: .8rem; }
+.professor-workspace .academic-table-scroll > p { padding: 1rem; margin: 0; }
+.professor-workspace .student-count-chip { gap: .4rem; }
+.professor-workspace .connected-students-list { display: flex; flex-direction: column; margin-top: 0; gap: 1rem; }
+.professor-workspace .connected-student-card { overflow: visible; box-shadow: none; gap: 1rem; }
+.professor-workspace .connected-student-card:focus-within { position: relative; z-index: 1; }
+.professor-workspace .connected-student-identity { display: flex; align-items: center; gap: .7rem; min-width: 0; }
+.professor-workspace .connected-student-identity > div { min-width: 0; }
+.professor-workspace .connected-student-avatar { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--primary-100); color: var(--primary-600); font-size: .75rem; font-weight: 700; }
+.professor-workspace .connected-student-name { white-space: normal; overflow-wrap: anywhere; font-size: .95rem; }
+.professor-workspace .connected-student-email { margin: .2rem 0 0; color: var(--slate-500); font-size: .78rem; overflow-wrap: anywhere; }
+.professor-workspace .connected-student-subtext { margin: -.25rem 0 0; line-height: 1.5; }
+.professor-workspace .professor-record-layout { display: grid; grid-template-columns: minmax(220px, 1.1fr) minmax(0, 2fr); gap: 1rem; }
+.professor-workspace .professor-record-layout:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
+.professor-workspace .professor-record-layout:empty { display: none; }
+.professor-workspace .academic-intro-card { display: flex; align-items: center; gap: .85rem; min-width: 0; padding: 1rem 1.15rem; border: 1px solid var(--primary-100); border-radius: var(--radius-md); background: linear-gradient(135deg, #f8fbff, #fff); }
+.professor-workspace .academic-intro-card h4 { margin: 0; font-size: .9rem; color: var(--slate-900); }
+.professor-workspace .academic-intro-card p { margin: .3rem 0 0; color: var(--slate-500); font-size: .78rem; line-height: 1.5; overflow-wrap: anywhere; }
+.professor-workspace .professor-student-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.professor-workspace .professor-student-metrics .metric-tile { min-height: 72px; }
+.professor-workspace .professor-student-metrics .metric-tile dd { margin-top: .35rem; font-size: 1.15rem; overflow-wrap: anywhere; }
+.professor-workspace .academic-transfer-container:empty { display: none; }
+.professor-workspace .transfer-picker-trigger { text-align: left; font-family: inherit; }
+.professor-workspace .transfer-picker-option { border: 0; font-family: inherit; text-align: left; }
+.professor-workspace .academic-workspace-empty { display: flex; align-items: center; gap: .85rem; padding: 1.15rem; border: 1px solid var(--slate-200); border-radius: var(--radius-md); background: var(--slate-50); }
+.professor-workspace .academic-workspace-empty h3 { margin: 0; font-size: .9rem; color: var(--slate-800); }
+.professor-workspace .academic-workspace-empty p { margin: .3rem 0 0; color: var(--slate-500); font-size: .82rem; line-height: 1.5; }
+.professor-workspace :is(button, summary):focus-visible { outline: 2px solid var(--primary-500); outline-offset: 3px; }
+
+@media (max-width: 1100px) {
+  .professor-workspace .professor-record-layout { grid-template-columns: minmax(0, 1fr); }
+  .professor-workspace .academic-panel-heading { flex-direction: column; }
+}
+@media (max-width: 680px) {
+  .professor-workspace .academic-panel { padding: 1.15rem; }
+  .professor-workspace .academic-csv-upload-form,
+  .professor-workspace .class-forecast-filters { grid-template-columns: minmax(0, 1fr); }
+  .professor-workspace .academic-submit-row { flex-direction: column; align-items: stretch; }
+  .professor-workspace .academic-submit-row p { flex: auto; }
+  .professor-workspace .academic-submit-row button { width: 100%; white-space: normal; }
+  .professor-workspace .academic-upload-card { flex-wrap: wrap; }
+  .professor-workspace .academic-file-control { width: 100%; }
+  .professor-workspace .academic-file-picker-button { width: 100%; box-sizing: border-box; }
+  .professor-workspace .academic-upload-description { flex-basis: calc(100% - 60px); }
+  .professor-workspace .connected-student-card__top { flex-wrap: wrap; align-items: flex-start; }
+  .professor-workspace .professor-student-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .professor-workspace .academic-panel { padding: 1rem .85rem; }
+  .professor-workspace .academic-template-actions { width: 100%; }
+  .professor-workspace .academic-template-actions button { width: 100%; }
+  .professor-workspace .academic-workspace-empty { align-items: flex-start; }
+  .professor-workspace .academic-intro-card { padding: .85rem; }
+}
