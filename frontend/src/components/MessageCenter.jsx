@@ -313,7 +313,7 @@ export default function MessageCenter({ initialSelectedUser, onUnreadCountChange
       <header>
         <div>
           <p className="dashboard-eyebrow">Academic support</p>
-          <h2 id="messages-title">Support messages</h2>
+          <h2 id="messages-title">Support Messages</h2>
           <p>
             Private conversations are available only while the student–professor
             connection is active.

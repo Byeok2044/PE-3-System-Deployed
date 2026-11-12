@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BarChart3, Database, ShieldCheck, UsersRound } from "lucide-react";
+import { BarChart3, Database, Info, ShieldCheck, UsersRound } from "lucide-react";
 import ConnectedStudentData from "../components/ConnectedStudentData.jsx";
 import AcademicCsvImport from "../components/AcademicCsvImport.jsx";
 import { useAuth } from "../context/AuthContext";
@@ -9,6 +9,7 @@ export default function ProfessorDashboardView({ user, activeTab }) {
   const [connections, setConnections] = useState([]);
   const [importRevision, setImportRevision] = useState(0);
   const [isLoadingConnections, setIsLoadingConnections] = useState(true);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -24,10 +25,108 @@ export default function ProfessorDashboardView({ user, activeTab }) {
     return () => { isMounted = false; };
   }, [apiFetch]);
 
+  useEffect(() => {
+    if (!isTutorialOpen) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setIsTutorialOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isTutorialOpen]);
+
   if (activeTab === "history" || activeTab === "connections") return null;
 
   if (activeTab === "data") {
-    return <section className="workspace-section academic-workspace" id="data"><div className="section-heading"><div><p className="dashboard-eyebrow">Class Workspace</p><h2>Student Academic Records</h2></div></div><AcademicCsvImport onImported={() => setImportRevision(value => value + 1)} /><ConnectedStudentData key={importRevision} /></section>;
+    return (
+      <section className="workspace-section academic-workspace" id="data">
+        <div className="section-heading data-workspace-heading">
+          <div>
+            <p className="dashboard-eyebrow">Class Workspace</p>
+            <h2>Student Academic Records</h2>
+          </div>
+          <button
+            type="button"
+            className="data-workspace-help"
+            onClick={() => setIsTutorialOpen((open) => !open)}
+            aria-label={isTutorialOpen ? "Close professor data workspace tutorial" : "Open professor data workspace tutorial"}
+            aria-expanded={isTutorialOpen}
+            aria-controls={isTutorialOpen ? "professor-data-tutorial" : undefined}
+          >
+            <Info size={19} aria-hidden="true" />
+          </button>
+        </div>
+
+        <AcademicCsvImport onImported={() => setImportRevision((value) => value + 1)} />
+        <ConnectedStudentData key={importRevision} />
+
+        {isTutorialOpen && (
+          <div
+            className="academic-tutorial-backdrop"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) setIsTutorialOpen(false);
+            }}
+          >
+            <section
+              id="professor-data-tutorial"
+              className="academic-tutorial-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="professor-data-tutorial-title"
+              aria-describedby="professor-data-tutorial-description"
+            >
+              <div className="academic-tutorial-header">
+                <span className="dashboard-eyebrow">Professor Data Workspace Guide</span>
+                <h2 id="professor-data-tutorial-title">Managing Student Records</h2>
+                <p id="professor-data-tutorial-description">
+                  Import academic records for the source periods students have assigned to you, then review the shared student data.
+                </p>
+              </div>
+
+              <ol className="academic-tutorial-steps">
+                <li>
+                  <h3>Check Connections and the Source Period</h3>
+                  <p>
+                    A student must have an accepted connection and designate you as their academic provider for the
+                    source semester before their record can be imported.
+                  </p>
+                </li>
+                <li>
+                  <h3>Prepare a CSV File</h3>
+                  <p>
+                    Download the CSV template and review the format instructions. Use one source semester per file,
+                    with up to 500 students and a maximum file size of 1 MB. Include the student email, academic year,
+                    semester, previous grade and maximum, enrolled and approved units, and attendance (day or evening).
+                    The correction reason is optional for initial uploads and required when modifying existing records.
+                  </p>
+                </li>
+                <li>
+                  <h3>Validate, Review, and Confirm the Import</h3>
+                  <p>
+                    Choose the CSV and select <strong>Validate and Preview</strong>. Review each row's proposed
+                    changes and any errors before continuing. When the preview is valid, select <strong>Confirm Import</strong>
+                    to save the batch. The preview has an expiry time, and confirmation applies to the entire batch.
+                  </p>
+                </li>
+                <li>
+                  <h3>Review Connected Student Records</h3>
+                  <p>
+                    Search students by name or email. Check their readiness, source period, academic record, and current
+                    forecast. When provider-transfer controls are available, use them to offer or accept a transfer.
+                    Treat forecasts as context for supportive conversations, not as labels or the sole basis for decisions.
+                  </p>
+                </li>
+              </ol>
+
+              <div className="academic-tutorial-footer">
+                <button type="button" className="dashboard-action" onClick={() => setIsTutorialOpen(false)}>
+                  Close
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
+      </section>
+    );
   }
 
   if (activeTab === "insights") {

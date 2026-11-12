@@ -7,7 +7,6 @@ import {
   ChevronDown,
   Clock,
   FilePenLine,
-  FilePlus2,
   Filter,
   History as HistoryIcon,
   ShieldCheck,
@@ -19,11 +18,18 @@ import "../styles/AcademicWorkspace.css";
 import "../styles/Dashboard.css";
 
 const eventCopy = {
-  record_created: { label: "Personal Information Created", icon: FilePlus2, color: "blue" },
   record_updated: { label: "Personal Information Updated", icon: FilePenLine, color: "blue" },
   forecast_run: { label: "Forecast Prediction Run", icon: BarChart3, color: "purple" },
   insight_generated: { label: "Support Suggestions Generated", icon: Activity, color: "emerald" },
 };
+
+const visibleActivityTypes = new Set(["record_updated", "forecast_run", "insight_generated"]);
+
+export const filterStudentActivities = (activities, selectedFilter = "all") =>
+  activities.filter((entry) =>
+    visibleActivityTypes.has(entry.type) &&
+    (selectedFilter === "all" || entry.type === selectedFilter)
+  );
 
 const formatDate = (value) => {
   if (!value) return "Recently";
@@ -103,20 +109,15 @@ export default function HistoryView({ user }) {
     return <p className="connected-students-loading">Loading your timeline history…</p>;
   }
 
-  const filteredActivities = state.activities.filter((entry) => {
-    if (selectedFilter === "all") return true;
-    if (selectedFilter === "system_event") {
-      return !eventCopy[entry.type] || entry.type === "system_event";
-    }
-    return entry.type === selectedFilter;
-  });
+  const filteredActivities = filterStudentActivities(state.activities, selectedFilter);
+  const visibleActivities = filterStudentActivities(state.activities);
 
   return (
     <div className="history-page-wrapper">
       {/* Intro Header */}
       <section className="dashboard-intro">
         <span className="dashboard-eyebrow">Your Activity</span>
-        <h1>Record & Forecast Timeline</h1>
+        <h2>Record & Forecast Timeline</h2>
         <p>
           Trace changes made to your academic record, past attrition forecasts, and official professor audits.
         </p>
@@ -137,12 +138,10 @@ export default function HistoryView({ user }) {
               onChange={(e) => setSelectedFilter(e.target.value)}
               aria-label="Filter events by type"
             >
-              <option value="all">All Events ({state.activities.length})</option>
-              <option value="record_created">Personal Information Created</option>
-              <option value="record_updated">Personal Information Updated</option>
+              <option value="all">All Events ({visibleActivities.length})</option>
+              <option value="record_updated">Personal Information Updates</option>
               <option value="forecast_run">Forecast Prediction Runs</option>
               <option value="insight_generated">Support Suggestions</option>
-              <option value="system_event">System Events</option>
             </select>
             <ChevronDown size={14} className="history-select-arrow" />
           </div>
@@ -230,7 +229,7 @@ export default function HistoryView({ user }) {
             <h2>Activity Feed</h2>
           </div>
           <span className="history-counter-chip">
-            Showing {filteredActivities.length} of {state.activities.length}
+            Showing {filteredActivities.length} of {visibleActivities.length}
           </span>
         </div>
 

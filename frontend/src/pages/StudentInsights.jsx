@@ -137,7 +137,7 @@ export default function StudentInsights({ onForecastComplete, latestForecast }) 
       <div className="section-heading">
         <div>
           <p className="dashboard-eyebrow">Your forecast</p>
-          <h2>{prediction ? "Next-semester outlook" : "Ready when you are"}</h2>
+          <h2>{prediction ? "Next-Semester Outlook" : "Ready when you are"}</h2>
         </div>
       </div>
       <p className="dashboard-subtext">
@@ -154,7 +154,7 @@ export default function StudentInsights({ onForecastComplete, latestForecast }) 
         disabled={running || gettingInsight}
       >
         {running ? <RefreshCw size={16} className="forecast-spin" /> : <Play size={16} />}
-        {running ? "Running forecast…" : prediction ? "Run a new forecast" : "Run my forecast"}
+        {running ? "Running Forecast…" : prediction ? "Run a New Forecast" : "Run my Forecast"}
       </button>
 
       {prediction && (
@@ -197,12 +197,12 @@ export default function StudentInsights({ onForecastComplete, latestForecast }) 
             disabled={gettingInsight}
           >
             {gettingInsight ? <RefreshCw size={16} className="forecast-spin" /> : <Sparkles size={16} />}
-            {gettingInsight ? "Creating suggestions…" : "Get support suggestions"}
+            {gettingInsight ? "Creating Suggestions…" : "Get Support Suggestions"}
           </button>
 
           {insight && (
             <section className="support-insight" aria-labelledby="support-insight-title">
-              <h3 id="support-insight-title"><Sparkles size={18} /> Your explanation and next steps</h3>
+              <h3 id="support-insight-title"><Sparkles size={18} /> Your Explanation and Next Steps</h3>
               <p>{insight.summary}</p>
               {insight.explanationStatus === "unavailable" && (
                 <p>Model-based reasons are unavailable for this saved forecast. Run a new forecast before requesting a detailed risk explanation.</p>

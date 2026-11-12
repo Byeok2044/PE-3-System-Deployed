@@ -200,9 +200,9 @@ export default function ConnectionManager({ onNavigateTab }) {
           <Link2 size={19} />
         </div>
         <div>
-          <p className="dashboard-eyebrow">Professor connection</p>
+          <p className="dashboard-eyebrow">Professor Connection</p>
           <h3 id="connection-title">
-            {isStudent ? "Connect with professors" : "Student Connection Requests"}
+            {isStudent ? "Connect with Professors" : "Student Connection Requests"}
           </h3>
         </div>
         {!isStudent && pendingCount > 0 && (

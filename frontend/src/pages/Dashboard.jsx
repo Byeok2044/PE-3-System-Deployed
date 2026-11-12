@@ -10,6 +10,7 @@ import {
   Clock,
   Database,
   History as HistoryIcon,
+  Info,
   LayoutDashboard,
   LogOut,
   Search,
@@ -584,9 +585,19 @@ export default function Dashboard() {
   const [isInflating, setIsInflating] = useState(false);
   const [isPopped, setIsPopped] = useState(false);
   const [showPopModal, setShowPopModal] = useState(false);
+  const [isDataTutorialOpen, setIsDataTutorialOpen] = useState(false);
   const popTimerRef = useRef(null);
 
   const activeTab = TAB_BY_PATH[location.pathname] || "overview";
+
+  useEffect(() => {
+    if (!isDataTutorialOpen) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setIsDataTutorialOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isDataTutorialOpen]);
 
   useEffect(() => {
     if (location.pathname === '/dashboard/profile') {
@@ -1143,17 +1154,98 @@ export default function Dashboard() {
 
         {user?.role === "student" && activeTab === "data" && (
           <section className="workspace-section" id="data">
-            <div className="section-heading">
+            <div className="section-heading data-workspace-heading">
               <div>
                 <p className="dashboard-eyebrow">Your data</p>
                 <h2>Academic Record and Personal Information</h2>
               </div>
+              <button
+                type="button"
+                className="data-workspace-help"
+                onClick={() => setIsDataTutorialOpen((open) => !open)}
+                aria-label={isDataTutorialOpen ? "Close Data Workspace tutorial" : "Open Data Workspace tutorial"}
+                aria-expanded={isDataTutorialOpen}
+                aria-controls={isDataTutorialOpen ? "student-data-tutorial" : undefined}
+              >
+                <Info size={19} aria-hidden="true" />
+              </button>
             </div>
             <p className="dashboard-subtext">
               This information is used to generate your personal risk forecast.
               Only you and authorized staff at your institution can see it.
             </p>
             <StudentDataForm onSaveRecord={processAndStoreRecord} />
+            {isDataTutorialOpen && (
+              <div
+                className="academic-tutorial-backdrop"
+                onClick={(event) => {
+                  if (event.target === event.currentTarget) setIsDataTutorialOpen(false);
+                }}
+              >
+                <section
+                  id="student-data-tutorial"
+                  className="academic-tutorial-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="student-data-tutorial-title"
+                  aria-describedby="student-data-tutorial-description"
+                >
+                  <div className="academic-tutorial-header">
+                    <span className="dashboard-eyebrow">Data Workspace Guide</span>
+                    <h2 id="student-data-tutorial-title">How Your Records Are Managed</h2>
+                    <p id="student-data-tutorial-description">
+                      Review your academic record, choose who provides it, and keep your personal indicators up to date.
+                    </p>
+                  </div>
+
+                  <ol className="academic-tutorial-steps">
+                    <li>
+                      <h3>Review Your Academic Record</h3>
+                      <p>
+                        This section displays the academic year, semester, professor, and uploaded record details such as
+                        your previous grade, units, and schedule. The professor manages these values; contact your provider
+                        if something needs correction.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Designate an Academic Provider</h3>
+                      <p>
+                        Enter the source academic year as eight digits (for example, 2025-2026; pasting the year is also
+                        supported), choose the semester, and select a connected professor. Select{" "}
+                        <strong>Designate Provider</strong> to submit. If no professor is listed, connect with one first
+                        in Connections.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Update Your Personal Indicators</h3>
+                      <p>
+                        Choose Yes or No for each background indicator: educational support needs, tuition fees up to
+                        date, and active scholarship. Select <strong>Save Personal Information</strong> to save your
+                        choices.
+                      </p>
+                    </li>
+                  </ol>
+
+                  <div className="academic-tutorial-readiness">
+                    <h3>Understand Your Readiness Status</h3>
+                    <ul>
+                      <li><strong>No Connection:</strong> connect with a professor and wait for acceptance.</li>
+                      <li><strong>Choose Provider:</strong> select a connected professor for the source semester.</li>
+                      <li><strong>Provider Disconnected:</strong> reconnect with your professor before forecasting.</li>
+                      <li><strong>Awaiting Upload:</strong> your professor still needs to upload the record.</li>
+                      <li><strong>Profile Incomplete:</strong> complete your personal indicators.</li>
+                      <li><strong>Ready:</strong> your record and personal information are ready for forecasting.</li>
+                    </ul>
+                  </div>
+
+                  <div className="academic-tutorial-footer">
+                    <button type="button" className="dashboard-action" onClick={() => setIsDataTutorialOpen(false)}>
+                      Close
+                    </button>
+                  </div>
+                </section>
+              </div>
+            )}
           </section>
         )}
 

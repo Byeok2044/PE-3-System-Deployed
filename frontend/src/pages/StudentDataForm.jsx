@@ -35,8 +35,11 @@ export default function StudentDataForm({ onSaveRecord }) {
   const [period, setPeriod] = useState({ academicYear: "", semester: "1", professorId: "" });
   const [yearDigits, setYearDigits] = useState(["", "", "", "", "", "", "", ""]);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [generalError, setGeneralError] = useState("");
+  const [profileError, setProfileError] = useState("");
+  const [profileMessage, setProfileMessage] = useState("");
+  const [providerError, setProviderError] = useState("");
+  const [providerMessage, setProviderMessage] = useState("");
   const [isProfPickerOpen, setIsProfPickerOpen] = useState(false);
 
   const dirty = useRef(false);
@@ -99,11 +102,11 @@ export default function StudentDataForm({ onSaveRecord }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Could not load your workspace.");
       ingest(data);
-    } catch (err) { setError(err.message); }
+    } catch (err) { setGeneralError(err.message); }
   }, { intervalMs: 15000 });
 
   const saveProfile = async (event) => {
-    event.preventDefault(); setBusy(true); setError(""); setMessage("");
+    event.preventDefault(); setBusy(true); setProfileError(""); setProfileMessage("");
     try {
       const response = await apiFetch("/api/students/me", {
         method: "PUT",
@@ -112,21 +115,23 @@ export default function StudentDataForm({ onSaveRecord }) {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Could not save your information.");
-      dirty.current = false; ingest(data); setMessage(data.message);
-    } catch (err) { setError(err.message); } finally { setBusy(false); }
+      dirty.current = false; ingest(data); setProfileMessage(data.message);
+    } catch (err) { setProfileError(err.message); } finally { setBusy(false); }
   };
 
   const designate = async (event) => {
     event.preventDefault();
+    setProviderError("");
+    setProviderMessage("");
     if (!period.academicYear || !/^[0-9]{4}-[0-9]{4}$/.test(period.academicYear)) {
-      setError("Please complete all 8 digits of the source academic year.");
+      setProviderError("Please complete all 8 digits of the source academic year.");
       return;
     }
     if (!period.professorId) {
-      setError("Please select a connected professor.");
+      setProviderError("Please select a connected professor.");
       return;
     }
-    setBusy(true); setError(""); setMessage("");
+    setBusy(true);
     try {
       const response = await apiFetch("/api/students/me/academic-provider", {
         method: "PUT",
@@ -135,11 +140,11 @@ export default function StudentDataForm({ onSaveRecord }) {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Could not designate your professor.");
-      ingest(data); setMessage(data.message);
-    } catch (err) { setError(err.message); } finally { setBusy(false); }
+      ingest(data); setProviderMessage(data.message);
+    } catch (err) { setProviderError(err.message); } finally { setBusy(false); }
   };
 
-  if (!workspace) return <p role="status">{error || "Loading your workspace..."}</p>;
+  if (!workspace) return <p role="status">{generalError || "Loading your workspace..."}</p>;
 
   const academic = workspace.academic;
   const record = workspace.record;
@@ -150,8 +155,7 @@ export default function StudentDataForm({ onSaveRecord }) {
 
   return (
     <div className="student-workspace">
-      {error && <p className="academic-notice academic-notice--error" role="alert">{error}</p>}
-      {message && <p className="academic-notice" role="status">{message}</p>}
+      {generalError && <p className="academic-notice academic-notice--error" role="alert">{generalError}</p>}
 
       {/* 1. Academic Record Panel */}
       <section className="academic-panel">
@@ -207,6 +211,13 @@ export default function StudentDataForm({ onSaveRecord }) {
           )}
         </div>
       </section>
+
+      {providerError && (
+        <p className="academic-notice academic-notice--error" role="alert">{providerError}</p>
+      )}
+      {providerMessage && (
+        <p className="academic-notice" role="status">{providerMessage}</p>
+      )}
 
       {/* 2. Designate Source Panel */}
       <section className="academic-panel">
@@ -355,6 +366,13 @@ export default function StudentDataForm({ onSaveRecord }) {
         )}
       </section>
 
+      {profileError && (
+        <p className="academic-notice academic-notice--error" role="alert">{profileError}</p>
+      )}
+      {profileMessage && (
+        <p className="academic-notice" role="status">{profileMessage}</p>
+      )}
+
       {/* 3. Personal Circumstances Panel */}
       <section className="academic-panel">
         <div className="academic-panel-heading">
@@ -405,6 +423,7 @@ export default function StudentDataForm({ onSaveRecord }) {
           </div>
         </form>
       </section>
+
     </div>
   );
 }

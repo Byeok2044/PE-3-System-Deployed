@@ -580,6 +580,7 @@
   .student-workspace .academic-panel {
     padding: 1.15rem !important;
   }
+
   .student-workspace .academic-values-grid {
     grid-template-columns: repeat(2, 1fr) !important;
   }
@@ -624,4 +625,5 @@
     height: 40px !important;
     min-height: 40px !important;
   }
+
 }
