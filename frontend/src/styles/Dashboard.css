@@ -3277,13 +3277,35 @@
 
 .academic-tutorial-footer {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   padding-top: 0.2rem;
+}
+
+.academic-tutorial-opt-out {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  color: #475569;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.academic-tutorial-opt-out input {
+  flex: 0 0 auto;
+  margin: 0.12rem 0 0;
+  accent-color: #0c5bb4;
 }
 
 @media (max-width: 680px) {
   .academic-tutorial-modal {
     padding: 1.15rem;
+  }
+
+  .academic-tutorial-footer {
+    flex-wrap: wrap;
   }
 }
 
