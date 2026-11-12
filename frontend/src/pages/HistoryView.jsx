@@ -105,9 +105,6 @@ export default function HistoryView({ user }) {
 
   const filteredActivities = state.activities.filter((entry) => {
     if (selectedFilter === "all") return true;
-    if (selectedFilter === "system_event") {
-      return !eventCopy[entry.type] || entry.type === "system_event";
-    }
     return entry.type === selectedFilter;
   });
 
@@ -142,7 +139,6 @@ export default function HistoryView({ user }) {
               <option value="record_updated">Personal Information Updated</option>
               <option value="forecast_run">Forecast Prediction Runs</option>
               <option value="insight_generated">Support Suggestions</option>
-              <option value="system_event">System Events</option>
             </select>
             <ChevronDown size={14} className="history-select-arrow" />
           </div>
