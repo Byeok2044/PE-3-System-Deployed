@@ -69,7 +69,8 @@ function batchEvent(batch) {
   return { id: `batch:${batch._id}`, category: 'csv_import', action: 'confirmed', occurredAt: batch.committedAt,
     actor: person(batch.professor, batch.professorName, 'professor'), student: null,
     academicYear: batch.academicYear || values.academicYear, semester: batch.semester || values.semester,
-    details: { batchId: String(batch._id), counts: { created: batch.result?.created, corrected: batch.result?.corrected, unchanged: batch.result?.unchanged } } };
+    details: { batchId: String(batch._id), section: batch.section, skipped: batch.skippedCount || 0,
+      counts: { created: batch.result?.created, corrected: batch.result?.corrected, unchanged: batch.result?.unchanged } } };
 }
 function revisionEvent(revision, names = new Map()) {
   const before = revision.before || {}; const after = revision.after || {};
@@ -139,7 +140,7 @@ exports.getProfessorHistory = async (req, res, next) => {
     const revisionActions = [...(includes('academic_correction') ? ['corrected'] : []), ...(includes('provider_transfer') ? TRANSFERS : [])];
     const storedCategories = ['connection', 'forecast'].filter(includes);
     const [batches, revisions, events, activities] = await Promise.all([
-      includes('csv_import') ? Batch.find(and(batchQuery, cursorFilter('batch', 'committedAt', filter.cursor))).select('professor professorName academicYear semester committedAt result rows.values.academicYear rows.values.semester').sort({ committedAt: -1, _id: -1 }).limit(size).populate('professor', 'fullName').lean() : [],
+      includes('csv_import') ? Batch.find(and(batchQuery, cursorFilter('batch', 'committedAt', filter.cursor))).select('professor professorName academicYear semester section skippedCount committedAt result rows.values.academicYear rows.values.semester').sort({ committedAt: -1, _id: -1 }).limit(size).populate('professor', 'fullName').lean() : [],
       revisionActions.length ? Revision.find(and(revisionQuery, { action: { $in: revisionActions } }, cursorFilter('revision', 'createdAt', filter.cursor))).sort({ createdAt: -1, _id: -1 }).limit(size).populate('actor student', 'fullName role').lean() : [],
       storedCategories.length ? Event.find(and(storedQuery, { category: { $in: storedCategories } }, cursorFilter('history', 'occurredAt', filter.cursor))).sort({ occurredAt: -1, _id: -1 }).limit(size).lean() : [],
       includes('forecast') ? Activity.find(and(legacyQuery, cursorFilter('forecast', 'createdAt', filter.cursor))).select('student record.academicYear record.semester record.academicVersion academicVersion forecast.predictedNextSemesterGrade forecast.gradeMaximum forecast.dropoutProbability forecast.riskLevel inputVersion createdAt').sort({ createdAt: -1, _id: -1 }).limit(size).populate('student', 'fullName role').lean() : [],

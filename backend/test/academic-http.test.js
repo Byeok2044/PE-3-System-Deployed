@@ -79,6 +79,25 @@ test('professor template is downloadable and JSON cannot masquerade as a CSV upl
   });
 });
 
+test('professor sample download contains valid example rows and class endpoints enforce authentication roles', async () => {
+  await withServer('professor', async request => {
+    const response = await request('/api/professor/academic-imports/template?sample=true');
+    assert.equal(response.status, 200); assert.match(response.headers.get('content-disposition'), /sample/);
+    const csv = await response.text();
+    const { parseCsv, validateAcademicRow } = require('../src/utils/academicValidation');
+    assert.equal(parseCsv(csv).length, 2);
+    for (const row of parseCsv(csv)) assert.equal(validateAcademicRow(row).errors.length, 0);
+  });
+  await withServer('student', async request => {
+    for (const [path, method] of [['/api/professor/academic-imports', 'GET'], ['/api/professor/academic-imports/000000000000000000000003/forecasts', 'GET'],
+      ['/api/professor/academic-imports/000000000000000000000003/forecasts', 'POST'],
+      ['/api/professor/academic-imports/000000000000000000000003/forecasts/export', 'GET'],
+      ['/api/professor/academic-imports/000000000000000000000003/forecasts/000000000000000000000005/run', 'POST']]) {
+      const response = await request(path, { method }); assert.equal(response.status, 403);
+    }
+  });
+});
+
 test('auth profile responds normally, and database outages return retryable 503 responses', async () => {
   await withServer('student', async request => {
     let response = await request('/api/auth/me');

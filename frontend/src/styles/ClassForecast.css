@@ -1,0 +1,27 @@
+.class-forecast-panel h2 { display: flex; align-items: center; gap: .6rem; }
+.class-forecast-toolbar, .class-forecast-actions { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin: 1rem 0; }
+.class-forecast-toolbar .academic-form-group { flex: 1 1 220px; }
+.class-forecast-toolbar label > span { display: flex; align-items: center; gap: .4rem; }
+.class-forecast-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .75rem; margin: 1rem 0; }
+.class-forecast-summary article { display: flex; flex-direction: column; gap: .3rem; padding: 1rem; border: 1px solid var(--border-color, #e2e8f0); border-radius: var(--radius-sm, 10px); background: var(--bg-secondary, #f8fafc); }
+.class-forecast-summary strong { font-size: 1.5rem; color: var(--text-primary, #172554); }
+.class-forecast-summary span { font-size: .8rem; text-transform: capitalize; color: var(--text-secondary, #475569); }
+.class-forecast-summary .class-summary--low { border-bottom: 3px solid #15803d; }
+.class-forecast-summary .class-summary--medium { border-bottom: 3px solid #b45309; }
+.class-forecast-summary .class-summary--high { border-bottom: 3px solid #b91c1c; }
+.class-forecast-reference { overflow-wrap: anywhere; font-size: .8rem; color: var(--text-secondary, #475569); }
+.class-forecast-progress progress { width: 100%; height: .7rem; accent-color: var(--primary-600, #2563eb); }
+.class-forecast-progress p { font-size: .85rem; color: var(--text-secondary, #475569); }
+.class-forecast-table table { min-width: 900px; }
+.class-forecast-table caption { text-align: left; padding: .5rem 0; font-size: .85rem; color: var(--text-secondary, #475569); }
+.class-forecast-table small { display: block; margin-top: .3rem; max-width: 290px; overflow-wrap: anywhere; font-size: .74rem; color: var(--text-secondary, #475569); }
+.class-risk, .class-forecast-status { display: inline-block; padding: .3rem .55rem; border-radius: 6px; font-size: .77rem; font-weight: 600; text-transform: capitalize; }
+.class-risk--low, .class-forecast-status--succeeded { background: #dcfce7; color: #166534; }
+.class-risk--medium, .class-forecast-status--pending, .class-forecast-status--processing { background: #fef3c7; color: #92400e; }
+.class-risk--high, .class-forecast-status--failed { background: #fee2e2; color: #991b1b; }
+.class-forecast-status--restricted { background: #e2e8f0; color: #334155; }
+.class-forecast-disclaimer { margin-top: 1rem; line-height: 1.6; color: var(--text-secondary, #475569); font-size: .82rem; }
+.academic-import-options { display: flex; align-items: center; gap: .5rem; margin: .75rem 0; font-size: .85rem; }
+.academic-import-section { grid-column: 1 / -1; }
+@media (max-width: 800px) { .class-forecast-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .class-forecast-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .class-forecast-actions > button { width: 100%; justify-content: center; } }

@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { BarChart3, Database, ShieldCheck, UsersRound } from "lucide-react";
 import ConnectedStudentData from "../components/ConnectedStudentData.jsx";
 import AcademicCsvImport from "../components/AcademicCsvImport.jsx";
+import ClassForecastPanel from "../components/ClassForecastPanel.jsx";
 import { useAuth } from "../context/AuthContext";
 
 export default function ProfessorDashboardView({ user, activeTab }) {
   const { apiFetch } = useAuth();
   const [connections, setConnections] = useState([]);
   const [importRevision, setImportRevision] = useState(0);
+  const [importedBatchId, setImportedBatchId] = useState('');
+  const [classRunning, setClassRunning] = useState(false);
   const [isLoadingConnections, setIsLoadingConnections] = useState(true);
 
   useEffect(() => {
@@ -27,7 +30,10 @@ export default function ProfessorDashboardView({ user, activeTab }) {
   if (activeTab === "history" || activeTab === "connections") return null;
 
   if (activeTab === "data") {
-    return <section className="workspace-section academic-workspace" id="data"><div className="section-heading"><div><p className="dashboard-eyebrow">Class Workspace</p><h2>Student Academic Records</h2></div></div><AcademicCsvImport onImported={() => setImportRevision(value => value + 1)} /><ConnectedStudentData key={importRevision} /></section>;
+    return <section className="workspace-section academic-workspace" id="data"><div className="section-heading"><div><p className="dashboard-eyebrow">Class Workspace</p><h2>Student Academic Records</h2></div></div>
+      <AcademicCsvImport disabled={classRunning} onImported={result => { setImportedBatchId(result.batchId); setImportRevision(value => value + 1); }} />
+      <ClassForecastPanel importedBatchId={importedBatchId} onRunningChange={setClassRunning} onCompleted={() => setImportRevision(value => value + 1)} />
+      <ConnectedStudentData key={importRevision} /></section>;
   }
 
   if (activeTab === "insights") {
