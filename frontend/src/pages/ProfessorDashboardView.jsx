@@ -4,6 +4,7 @@ import ConnectedStudentData from "../components/ConnectedStudentData.jsx";
 import AcademicCsvImport from "../components/AcademicCsvImport.jsx";
 import ClassForecastPanel from "../components/ClassForecastPanel.jsx";
 import { useAuth } from "../context/AuthContext";
+import useWorkspaceGuide from "../hooks/useWorkspaceGuide.js";
 import "../styles/ProfessorWorkspace.css";
 
 export default function ProfessorDashboardView({ user, activeTab }) {
@@ -13,7 +14,16 @@ export default function ProfessorDashboardView({ user, activeTab }) {
   const [importedBatchId, setImportedBatchId] = useState('');
   const [classRunning, setClassRunning] = useState(false);
   const [isLoadingConnections, setIsLoadingConnections] = useState(true);
-  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const {
+    isOpen: isTutorialOpen,
+    setIsOpen: setIsTutorialOpen,
+    doNotShowAutomatically,
+    setDoNotShowAutomatically,
+  } = useWorkspaceGuide({
+    role: "professor",
+    user,
+    enabled: activeTab === "data",
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -96,7 +106,7 @@ export default function ProfessorDashboardView({ user, activeTab }) {
                 <span className="dashboard-eyebrow">Professor Data Workspace Guide</span>
                 <h2 id="professor-data-tutorial-title">Managing Student Records</h2>
                 <p id="professor-data-tutorial-description">
-                  Import academic records for the source periods students have assigned to you, then review the shared student data.
+                  Import academic records, run class forecasts, and review the information shared by your connected students.
                 </p>
               </div>
 
@@ -111,18 +121,32 @@ export default function ProfessorDashboardView({ user, activeTab }) {
                 <li>
                   <h3>Prepare a CSV File</h3>
                   <p>
-                    Download the CSV template and review the format instructions. Use one source semester per file,
+                    Download the CSV template for the required columns or the sample CSV to see an example, then review
+                    the format instructions. Use one source semester per file,
                     with up to 500 students and a maximum file size of 1 MB. Include the student email, academic year,
                     semester, previous grade and maximum, enrolled and approved units, and attendance (day or evening).
-                    The correction reason is optional for initial uploads and required when modifying existing records.
+                    The optional Section / Block label helps you find the import later. The correction reason is optional
+                    for initial uploads and required when modifying existing records.
                   </p>
                 </li>
                 <li>
                   <h3>Validate, Review, and Confirm the Import</h3>
                   <p>
-                    Choose the CSV and select <strong>Validate and Preview</strong>. Review each row's proposed
-                    changes and any errors before continuing. When the preview is valid, select <strong>Confirm Import</strong>
-                    to save the batch. The preview has an expiry time, and confirmation applies to the entire batch.
+                    Choose the CSV, optionally select <strong>Skip invalid rows</strong> to import only eligible records,
+                    then select <strong>Validate and Preview</strong>. Review proposed changes, row errors, and the eligible
+                    and skipped counts. When the preview allows confirmation, select <strong>Confirm Import</strong> to
+                    save the eligible records as a batch. The preview has an expiry time.
+                  </p>
+                </li>
+                <li>
+                  <h3>Run Class Forecasts</h3>
+                  <p>
+                    Select a confirmed import in <strong>Class Forecasts</strong>. Students need complete personal
+                    information and an active connection with you as their academic provider. Select
+                    <strong> Run Attrition Risk for This Class</strong> to start; the results show progress, risk levels,
+                    estimated dropout probabilities, predicted grades, and per-student status. Keep the page open while
+                    a run is active. You can pause and resume, retry failed students, filter or search results, and
+                    download a results CSV.
                   </p>
                 </li>
                 <li>
@@ -136,6 +160,14 @@ export default function ProfessorDashboardView({ user, activeTab }) {
               </ol>
 
               <div className="academic-tutorial-footer">
+                <label className="academic-tutorial-opt-out">
+                  <input
+                    type="checkbox"
+                    checked={doNotShowAutomatically}
+                    onChange={(event) => setDoNotShowAutomatically(event.target.checked)}
+                  />
+                  <span>Don't show this guide automatically again</span>
+                </label>
                 <button type="button" className="dashboard-action" onClick={() => setIsTutorialOpen(false)}>
                   Close
                 </button>

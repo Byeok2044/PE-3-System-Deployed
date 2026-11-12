@@ -9,6 +9,7 @@ import {
 } from "react";
 import { createSessionChannel } from "./sessionChannel.js";
 import { validateSession } from "./validateSession.js";
+import { clearWorkspaceGuideSession } from "../utils/workspaceGuideStorage.js";
 
 const AuthContext = createContext(null);
 const STORAGE_KEY = "eduforecaster_session";
@@ -40,6 +41,7 @@ export function AuthProvider({ children }) {
     sessionVersion.current += 1;
     localStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(STORAGE_KEY);
+    clearWorkspaceGuideSession();
     setSession(null);
     setSessionError("");
     setIsLoading(false);
@@ -109,6 +111,7 @@ export function AuthProvider({ children }) {
     const nextSession = { token: data.token, user: data.user };
     localStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(STORAGE_KEY);
+    clearWorkspaceGuideSession();
     (remember ? localStorage : sessionStorage).setItem(
       STORAGE_KEY,
       JSON.stringify(nextSession),

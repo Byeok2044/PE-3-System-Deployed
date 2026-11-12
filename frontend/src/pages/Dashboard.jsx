@@ -38,6 +38,7 @@ import StudentInsights from "./StudentInsights.jsx";
 import MessageCenter from "../components/MessageCenter.jsx";
 import Profile from './Profile.jsx';
 import useAdaptivePolling from "../hooks/useAdaptivePolling.js";
+import useWorkspaceGuide from "../hooks/useWorkspaceGuide.js";
 import ProfessorDashboardView from "./ProfessorDashboardView.jsx";
 import ProfessorHistoryView from "./ProfessorHistoryView.jsx";
 
@@ -585,10 +586,19 @@ export default function Dashboard() {
   const [isInflating, setIsInflating] = useState(false);
   const [isPopped, setIsPopped] = useState(false);
   const [showPopModal, setShowPopModal] = useState(false);
-  const [isDataTutorialOpen, setIsDataTutorialOpen] = useState(false);
   const popTimerRef = useRef(null);
 
   const activeTab = TAB_BY_PATH[location.pathname] || "overview";
+  const {
+    isOpen: isDataTutorialOpen,
+    setIsOpen: setIsDataTutorialOpen,
+    doNotShowAutomatically,
+    setDoNotShowAutomatically,
+  } = useWorkspaceGuide({
+    role: "student",
+    user,
+    enabled: user.role === "student" && activeTab === "data",
+  });
 
   useEffect(() => {
     if (!isDataTutorialOpen) return undefined;
@@ -1238,6 +1248,14 @@ export default function Dashboard() {
                   </div>
 
                   <div className="academic-tutorial-footer">
+                    <label className="academic-tutorial-opt-out">
+                      <input
+                        type="checkbox"
+                        checked={doNotShowAutomatically}
+                        onChange={(event) => setDoNotShowAutomatically(event.target.checked)}
+                      />
+                      <span>Don't show this guide automatically again</span>
+                    </label>
                     <button type="button" className="dashboard-action" onClick={() => setIsDataTutorialOpen(false)}>
                       Close
                     </button>
