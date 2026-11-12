@@ -33,8 +33,8 @@ exports.getMyHistory = async (req, res, next) => {
       StudentActivity.find({ student: req.user._id }).sort({ createdAt: -1 }).limit(100).lean(),
       loadWorkspace(req.user, { includeForecast: false }),
     ]);
-    res.json({ activities: activities.map(({ _id, type, record, forecast, insight, inputVersion, createdAt }) => ({
-      id: _id, type, record, forecast, insight, inputVersion, createdAt,
+    res.json({ activities: activities.map(({ _id, type, record, forecast, insight, inputVersion, createdAt, generatedByName, batchId, section }) => ({
+      id: _id, type, record, forecast, insight, inputVersion, createdAt, generatedByName, batchId, section,
       freshness: inputVersion ? (workspace.inputVersion === inputVersion ? 'current' : 'outdated') : 'legacy',
     })) });
   } catch (error) { next(error); }

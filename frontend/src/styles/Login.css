@@ -491,6 +491,16 @@
   background: #f1fbf5;
   color: #176b38;
 }
+.login-startup-status {
+  margin-bottom: 1.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #b5d3ee;
+  border-radius: 6px;
+  background: #f1f7ff;
+  color: #244e78;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
 .field-error {
   color: #b4403b;
 }

@@ -40,8 +40,11 @@ exports.template = (req, res, next) => {
   try {
     requireProfessor(req.user);
     res.set('Content-Type', 'text/csv; charset=utf-8');
-    res.set('Content-Disposition', 'attachment; filename="retainify-academic-template.csv"');
-    res.send(`${HEADERS.join(',')}\r\n`);
+    const sample = req.query?.sample === 'true';
+    res.set('Content-Disposition', `attachment; filename="retainify-academic-${sample ? 'sample' : 'template'}.csv"`);
+    res.send(`${HEADERS.join(',')}\r\n` + (sample
+      ? 'student1@example.com,2026-2027,1,2.25,5,18,18,day\r\nstudent2@example.com,2026-2027,1,3.00,5,18,12,night\r\n'
+      : ''));
   } catch (error) { next(error); }
 };
 
@@ -52,6 +55,8 @@ exports.preview = async (req, res, next) => {
     const parsed = parseCsv(req.body);
     const reason = String(req.query.reason || '').trim();
     if (reason.length > 500) throw fail('Correction reason must be at most 500 characters.');
+    const section = String(req.query.section || '').trim();
+    if (section.length > 80) throw fail('Section/block must be at most 80 characters.');
     const key = institutionKey(req.user.institution);
     const users = await User.find({ email: { $in: parsed.map(row => row.studentEmail.toLowerCase()) }, role: 'student', emailVerified: true }).select('fullName email institution').lean();
     const byEmail = new Map(users.map(user => [user.email, user]));
@@ -85,12 +90,25 @@ exports.preview = async (req, res, next) => {
         expectedVersion: record?.academicVersion, before, after, action: errors.length ? 'invalid' : unchanged ? 'unchanged' : before ? 'correction' : 'new' });
     }
     if (periods.size !== 1) throw fail('Use one academic year and semester per CSV batch.');
-    const valid = rows.every(row => row.errors.length === 0);
+    // Reject every occurrence of a duplicate when importing a partial batch.
+    const duplicates = new Map();
+    for (const row of rows) {
+      const key = `${row.values.studentEmail}:${row.values.academicYear}:${row.values.semester}`;
+      if (duplicates.has(key)) {
+        const first = duplicates.get(key);
+        first.errors.push('Duplicate student and academic period in this file.'); first.action = 'invalid';
+      } else duplicates.set(key, row);
+    }
+    const eligible = rows.filter(row => !row.errors.length);
+    const valid = eligible.length === rows.length;
+    const canConfirm = valid || (req.query.allowPartial === 'true' && eligible.length > 0);
     let batch;
-    if (valid) batch = await Batch.create({ professor: req.user._id, institutionKey: key, rows, correctionReason: reason,
+    if (canConfirm) batch = await Batch.create({ professor: req.user._id, institutionKey: key, rows: eligible, section,
+      skippedCount: rows.length - eligible.length, correctionReason: reason,
       contentHash: crypto.createHash('sha256').update(JSON.stringify(rows.map(row => row.values))).digest('hex'), expiresAt: new Date(Date.now() + 15 * 60 * 1000) });
-    res.status(200).json({ valid, batchId: batch?._id, expiresAt: batch?.expiresAt, rows,
-      message: valid ? 'Review all changes before confirming. Nothing has been saved yet.' : 'No records were saved. Correct every invalid row and upload again.' });
+    res.status(200).json({ valid, canConfirm, eligibleCount: eligible.length, skippedCount: rows.length - eligible.length,
+      section, batchId: batch?._id, expiresAt: batch?.expiresAt, rows,
+      message: canConfirm ? `Review ${eligible.length} eligible records before confirming. ${rows.length - eligible.length} invalid rows will be skipped. Nothing has been saved yet.` : 'No records were saved. Correct invalid rows or allow eligible rows to be imported.' });
   } catch (error) { next(error); }
 };
 
@@ -119,7 +137,8 @@ exports.confirm = async (req, res, next) => {
           action: row.action === 'new' ? 'uploaded' : 'corrected', reason: batch.correctionReason, before, after: existing.toObject() }], { session });
         counts[row.action === 'new' ? 'created' : 'corrected']++;
       }
-      batch.status = 'committed'; batch.committedAt = new Date(); batch.result = { ...counts, batchId: String(batch._id), message: 'Academic records imported successfully.' };
+      batch.status = 'committed'; batch.committedAt = new Date(); batch.result = { ...counts, skipped: batch.skippedCount || 0,
+        section: batch.section || '', batchId: String(batch._id), message: 'Academic records imported successfully.' };
       batch.professorName = req.user.fullName;
       batch.academicYear = batch.rows[0]?.values?.academicYear;
       batch.semester = batch.rows[0]?.values?.semester;

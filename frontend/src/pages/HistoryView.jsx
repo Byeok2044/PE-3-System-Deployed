@@ -257,7 +257,7 @@ export default function HistoryView({ user }) {
               const forecast = entry.forecast;
               const attendance = entry.record?.attendance || entry.record?.studySchedule;
               const isHighRisk =
-                forecast && Math.round((forecast.dropoutProbability || 0) * 100) > 40;
+                forecast && forecast.dropoutProbability >= 0.4;
 
               return (
                 <li key={entry.id || entry._id} className="history-card-item">
@@ -284,6 +284,12 @@ export default function HistoryView({ user }) {
                         </span>
                       )}
                     </div>
+
+                    {entry.batchId && <p className="dashboard-subtext">
+                      Class forecast by {entry.generatedByName || "your professor"}{entry.section && ` · ${entry.section}`}
+                      {entry.record?.academicYear && ` · ${entry.record.academicYear}, Semester ${entry.record.semester}`}
+                      {forecast?.modelVersion && ` · Model: ${forecast.modelVersion}`}
+                    </p>}
 
                     {entry.record?.previousSemesterGrade !== undefined && (
                       <div className="history-metrics-row">

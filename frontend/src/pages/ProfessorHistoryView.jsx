@@ -51,6 +51,8 @@ export function ProfessorHistoryEvent({ event }) {
           {event.category === 'csv_import' && <>
             <div className="professor-history-import-counts"><span><strong>{number(details.counts?.created)}</strong> New records</span><span><strong>{number(details.counts?.corrected)}</strong> Corrected</span><span><strong>{number(details.counts?.unchanged)}</strong> Unchanged</span></div>
             <p className="professor-history-reference">Batch ID: <code>{details.batchId}</code></p>
+            {details.section && <p>Section / Block: {details.section}</p>}
+            {details.skipped > 0 && <p>Invalid CSV rows skipped: {details.skipped}</p>}
           </>}
           {event.category === 'academic_correction' && <>
             <div className="professor-history-table-scroll"><table><caption>Academic values changed</caption><thead><tr><th scope="col">Field</th><th scope="col">Previous value</th><th scope="col">New value</th></tr></thead>
@@ -72,6 +74,8 @@ export function ProfessorHistoryEvent({ event }) {
               <div><dt>Academic version used</dt><dd>{number(details.academicVersion)}</dd></div>
             </dl>
             <p className="professor-history-muted">Saved forecast at the time of generation.{details.legacy ? ' This older forecast has legacy inputs.' : ''}</p>
+            {details.batchId && <p className="professor-history-reference">Class import: <code>{details.batchId}</code>{details.section && ` · ${details.section}`}</p>}
+            {details.modelVersion && <p className="professor-history-reference">Model: {details.modelVersion}</p>}
           </>}
         </>}
       </div>

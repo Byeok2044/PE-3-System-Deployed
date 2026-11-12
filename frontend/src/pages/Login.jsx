@@ -1,8 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import BrandLogo from "../components/BrandLogo";
 import "../styles/Login.css";
+
+const SERVER_UNAVAILABLE_MESSAGE = "Retainify may still be starting or temporarily unavailable. Please wait about a minute, then try again.";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -13,10 +15,18 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSlowLogin, setIsSlowLogin] = useState(false);
+  const [canRetryLogin, setCanRetryLogin] = useState(false);
   const [serverError, setServerError] = useState("");
   const [needsVerification, setNeedsVerification] = useState(false);
   const [resendMessage, setResendMessage] = useState("");
   const [isResending, setIsResending] = useState(false);
+  const loginRequest = useRef(null);
+
+  useEffect(() => () => {
+    loginRequest.current?.abort();
+    loginRequest.current = null;
+  }, []);
   const from = location.state?.from;
   const destination = from?.pathname?.startsWith("/dashboard")
     ? `${from.pathname}${from.search || ""}${from.hash || ""}`
@@ -45,7 +55,10 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loginRequest.current) return;
     setServerError("");
+    setCanRetryLogin(false);
+    setIsSlowLogin(false);
     setNeedsVerification(false);
     setResendMessage("");
 
@@ -55,11 +68,16 @@ const Login = () => {
       return;
     }
 
+    const controller = new AbortController();
+    loginRequest.current = controller;
+    const slowTimer = window.setTimeout(() => setIsSlowLogin(true), 8000);
+    const timeout = window.setTimeout(() => controller.abort(), 90_000);
     setIsSubmitting(true);
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           email: formData.email,
           password: formData.password,
@@ -67,19 +85,42 @@ const Login = () => {
         }),
       });
 
+      // A proxy can return an HTML startup/error page instead of API JSON.
+      // These failures must never be presented as incorrect credentials.
+      if (response.status >= 500 || response.status === 408) {
+        throw Object.assign(new Error(SERVER_UNAVAILABLE_MESSAGE), { retryable: true });
+      }
+
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         if (data.code === "EMAIL_NOT_VERIFIED") setNeedsVerification(true);
-        throw new Error(data.message || "Invalid email or password.");
+        throw new Error(data.message || (response.status === 401
+          ? "Invalid email or password."
+          : "We could not sign you in. Please try again."));
       }
 
       const data = await response.json();
+      if (!data?.token || !data?.user) {
+        throw Object.assign(new Error(SERVER_UNAVAILABLE_MESSAGE), { retryable: true });
+      }
+      if (loginRequest.current !== controller) return;
       login(data, rememberMe);
       navigate(destination, { replace: true });
     } catch (err) {
-      setServerError(err.message || "Something went wrong. Please try again.");
+      if (loginRequest.current !== controller) return;
+      const unavailable = err.retryable || err.name === "AbortError"
+        || err instanceof TypeError || err instanceof SyntaxError;
+      setCanRetryLogin(Boolean(unavailable));
+      setServerError(unavailable ? SERVER_UNAVAILABLE_MESSAGE
+        : err.message || "Something went wrong. Please try again.");
     } finally {
-      setIsSubmitting(false);
+      window.clearTimeout(slowTimer);
+      window.clearTimeout(timeout);
+      if (loginRequest.current === controller) {
+        loginRequest.current = null;
+        setIsSubmitting(false);
+        setIsSlowLogin(false);
+      }
     }
   };
 
@@ -140,7 +181,17 @@ const Login = () => {
 
           {serverError && (
             <div className="login-alert" role="alert">
-              {serverError}
+              <p>{serverError}</p>
+              {canRetryLogin && (
+                <button type="button" className="resend-verification" onClick={handleSubmit} disabled={isSubmitting}>
+                  Try Again
+                </button>
+              )}
+            </div>
+          )}
+          {isSubmitting && isSlowLogin && (
+            <div className="login-startup-status" role="status">
+              Retainify is taking longer to respond. The server may be starting. Please keep this page open while we sign you in.
             </div>
           )}
           {needsVerification && (
@@ -153,7 +204,7 @@ const Login = () => {
             </div>
           )}
 
-          <form className="login-form" onSubmit={handleSubmit} noValidate>
+          <form className="login-form" onSubmit={handleSubmit} aria-busy={isSubmitting} noValidate>
             <div className="form-group">
               <label htmlFor="email">Email address</label>
               <input

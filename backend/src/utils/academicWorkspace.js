@@ -6,7 +6,7 @@ const Connection = require('../models/StudentProfessorConnection');
 const { ACADEMIC_FIELDS, PROFILE_FIELDS, institutionKey, fail } = require('./academicValidation');
 const pick = (object, keys) => Object.fromEntries(keys.filter(key => object?.[key] !== undefined).map(key => [key, object[key]]));
 
-async function loadWorkspace(student, { includeForecast = true } = {}) {
+async function loadWorkspace(student, { includeForecast = true, academicRecordId } = {}) {
   if (!student) throw fail('Student account is no longer available.', 401);
   const [profile, academics, connections] = await Promise.all([
     StudentRecord.findOne({ user: student._id }).lean(),
@@ -15,7 +15,7 @@ async function loadWorkspace(student, { includeForecast = true } = {}) {
     Connection.find({ student: student._id, status: 'accepted' }).populate('professor', 'fullName email institution role emailVerified').lean(),
   ]);
   const accepted = connections.filter(item => item.professor?.role === 'professor' && item.professor.emailVerified && institutionKey(item.professor.institution) === institutionKey(student.institution));
-  const academic = academics[0] || null;
+  const academic = (academicRecordId ? academics.find(item => String(item._id) === String(academicRecordId)) : academics[0]) || null;
   const connection = accepted.find(item => String(item.professor._id) === String(academic?.provider?._id));
   const profileComplete = PROFILE_FIELDS.every(key => typeof profile?.[key] === 'boolean');
   const academicComplete = academic?.status === 'published' && academic.source === 'professor_csv' && ACADEMIC_FIELDS.every(key => academic[key] !== undefined && academic[key] !== null);
@@ -33,7 +33,11 @@ async function loadWorkspace(student, { includeForecast = true } = {}) {
     provider: String(academic.provider._id), connection: String(connection._id), connectionCreated: connection.createdAt,
     profile: profileData,
   })).digest('hex') : null;
-  const latest = includeForecast ? await StudentActivity.findOne({ student: student._id, type: 'forecast_run' }).sort({ createdAt: -1 }).lean() : null;
+  // A professor may forecast a historical semester after a student's current
+  // forecast. That historical run must not replace the current semester card.
+  const latest = includeForecast ? await StudentActivity.findOne({ student: student._id, type: 'forecast_run',
+    ...(academic ? { $or: [{ academicRecord: academic._id }, { academicRecord: { $exists: false } }] } : {})
+  }).sort({ createdAt: -1 }).lean() : null;
   const forecastCurrent = Boolean(latest?.inputVersion && inputVersion && latest.inputVersion === inputVersion);
   return {
     profile: profileData, record, academic: provenance, academicPeriods: academics.map(item => ({ id: String(item._id), academicYear: item.academicYear, semester: item.semester, status: item.status })),

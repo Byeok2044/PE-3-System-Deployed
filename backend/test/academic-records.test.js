@@ -222,3 +222,27 @@ test('current forecast read includes the exact server snapshot and version', asy
   assert.equal(current.latestForecast.inputVersion, initial.inputVersion);
   assert.equal(current.latestForecast.record.previousSemesterGrade, 2.25); assert.equal(current.hasOutdatedForecast, false);
 });
+
+test('class forecasts select the imported source semester instead of the newest academic record', async () => {
+  fixtures({ academics: [{ ...academic, _id: id(9), academicYear: '2026-2027', previousSemesterGrade: 1.5 }, academic] });
+  const selected = await workspaceService.loadWorkspace(student, { includeForecast: false, academicRecordId: academic._id });
+  assert.equal(selected.record.academicRecordId, academic._id); assert.equal(selected.record.previousSemesterGrade, 2.25);
+  const missing = await workspaceService.loadWorkspace(student, { includeForecast: false, academicRecordId: id(8) });
+  assert.equal(missing.canForecast, false); assert.equal(missing.record, null);
+});
+
+test('partial import stages only eligible rows and records the section and skipped count', async () => {
+  previewFixtures(); let saved;
+  stub(Batch, 'create', async value => { saved = value; return { ...value, _id: id(5) }; });
+  const request = { ...previewRequest(csv() + '\n' + csv({ studentEmail: 'unknown@example.com' }).split('\n')[1]),
+    query: { section: 'BSIT 3-3', allowPartial: 'true' } };
+  const res = await invoke(controller.preview, request); assert.ifError(res.error);
+  assert.equal(res.body.valid, false); assert.equal(res.body.canConfirm, true); assert.equal(res.body.skippedCount, 1);
+  assert.equal(saved.rows.length, 1); assert.equal(saved.rows[0].student, student._id); assert.equal(saved.section, 'BSIT 3-3');
+});
+
+test('partial import excludes all occurrences of duplicate students and does not stage an entirely invalid file', async () => {
+  previewFixtures(); stub(Batch, 'create', () => { throw new Error('must not stage duplicates'); });
+  const res = await invoke(controller.preview, { ...previewRequest(csv() + '\n' + csv().split('\n')[1]), query: { allowPartial: 'true' } });
+  assert.ifError(res.error); assert.equal(res.body.canConfirm, false); assert.equal(res.body.skippedCount, 2);
+});

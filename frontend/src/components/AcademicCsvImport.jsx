@@ -2,25 +2,28 @@ import { useId, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import "../styles/AcademicWorkspace.css";
 
-export default function AcademicCsvImport({ onImported }) {
+export default function AcademicCsvImport({ onImported, disabled = false }) {
   const { apiFetch } = useAuth();
   const fileInputId = useId();
   const [file, setFile] = useState(null);
   const [reason, setReason] = useState("");
   const [preview, setPreview] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [processing, setBusy] = useState(false);
+  const busy = processing || disabled;
+  const [section, setSection] = useState('');
+  const [allowPartial, setAllowPartial] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
 
-  const downloadTemplate = async () => {
+  const downloadTemplate = async (sample = false) => {
     setError("");
     try {
-      const response = await apiFetch("/api/professor/academic-imports/template");
+      const response = await apiFetch("/api/professor/academic-imports/template" + (sample ? '?sample=true' : ''));
       if (!response.ok) throw new Error((await response.json()).message);
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
-      link.download = "retainify-academic-template.csv";
+      link.download = sample ? 'retainify-academic-sample.csv' : 'retainify-academic-template.csv';
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {
@@ -36,7 +39,8 @@ export default function AcademicCsvImport({ onImported }) {
     setResult(null);
     try {
       if (!file || file.size > 1024 * 1024) throw new Error("Choose a UTF-8 CSV no larger than 1 MB.");
-      const response = await apiFetch("/api/professor/academic-imports/preview?reason=" + encodeURIComponent(reason), {
+      const params = new URLSearchParams({ reason, section, allowPartial: String(allowPartial) });
+      const response = await apiFetch("/api/professor/academic-imports/preview?" + params, {
         method: "POST",
         headers: { "Content-Type": "text/csv; charset=utf-8" },
         body: file,
@@ -65,7 +69,7 @@ export default function AcademicCsvImport({ onImported }) {
       }
       setResult(data);
       setPreview(null);
-      onImported?.();
+      onImported?.(data);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -80,9 +84,10 @@ export default function AcademicCsvImport({ onImported }) {
           <span className="dashboard-eyebrow">Academic Records</span>
           <h2>Upload Student Records</h2>
         </div>
-        <button type="button" className="connection-button" onClick={downloadTemplate} disabled={busy}>
-          Download CSV Template
-        </button>
+        <div className="class-forecast-actions">
+          <button type="button" className="connection-button" onClick={() => downloadTemplate()} disabled={busy}>Download CSV Template</button>
+          <button type="button" className="connection-button" onClick={() => downloadTemplate(true)} disabled={busy}>Download Sample CSV</button>
+        </div>
       </div>
 
       <details className="academic-upload-format">
@@ -91,11 +96,18 @@ export default function AcademicCsvImport({ onImported }) {
           <p><strong>File:</strong> One source semester per file, up to 500 students and 1 MB.</p>
           <p><strong>Requirement:</strong> Each student must have an accepted connection and designated you as the provider for that period.</p>
           <p><strong>CSV Column Headers:</strong> studentEmail, academicYear, semester, previousSemesterGrade, gradeMaximum, previousSemesterUnitsEnrolled, previousSemesterUnitsApproved, attendance</p>
-          <p><strong>CSV Values:</strong> studentEmail must match the student's email; academicYear in YYYY-YYYY format; semester must be 1 or 2; previousSemesterGrade and gradeMaximum numeric (scales: 4, 5, 20, or 100); attendance must be &quot;day&quot; or &quot;evening&quot;.</p>
+          <p><strong>CSV Values:</strong> studentEmail must match the student's email; academicYear in YYYY-YYYY format; semester must be 1 or 2; previousSemesterGrade and gradeMaximum numeric (scales: 4, 5, 20, or 100); attendance must be &quot;day&quot; or &quot;night&quot;.</p>
+          <p><strong>Class forecasts:</strong> After confirming the import, run attrition forecasts for the class below. Each student must also have complete personal information; grades alone are insufficient.</p>
+          <p><strong>Sample CSV:</strong> Replace the example emails, academic period, and academic values with your actual connected students' records before uploading.</p>
         </div>
       </details>
 
       <form className="academic-csv-upload-form" onSubmit={upload}>
+        <div className="academic-form-group academic-import-section">
+          <label htmlFor={`${fileInputId}-section`}>Section / Block (Optional)</label>
+          <input id={`${fileInputId}-section`} className="academic-input" value={section} maxLength={80} disabled={busy}
+            onChange={event => { setSection(event.target.value); setPreview(null); }} placeholder="e.g. BSIT 3-3" />
+        </div>
         {/* Column 1: Custom Uniform File Picker */}
         <div className="academic-form-group">
           <label htmlFor={fileInputId}>Student Records CSV</label>
@@ -141,14 +153,18 @@ export default function AcademicCsvImport({ onImported }) {
 
         {/* Column 3: Aligned Action Button */}
         <button className="dashboard-action" disabled={busy || !file}>
-          {busy ? "Processing..." : "Validate and Preview"}
+          {busy ? "Processing..." : "Validate and preview"}
         </button>
       </form>
+      <label className="academic-import-options"><input type="checkbox" checked={allowPartial} disabled={busy}
+        onChange={event => { setAllowPartial(event.target.checked); setPreview(null); }} />
+        Allow eligible rows to be imported and skip invalid rows (review before confirming)
+      </label>
 
       {error && <p role="alert" className="academic-notice academic-notice--error">{error}</p>}
       {result && (
         <p role="status" className="academic-notice">
-          {result.message} New: {result.created}; corrected: {result.corrected}; unchanged: {result.unchanged}.
+          {result.message} New: {result.created}; corrected: {result.corrected}; unchanged: {result.unchanged}; skipped: {result.skipped || 0}.
         </p>
       )}
 
@@ -197,10 +213,10 @@ export default function AcademicCsvImport({ onImported }) {
             </table>
           </div>
 
-          {preview.valid && (
+          {preview.canConfirm && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", marginTop: "0.5rem" }}>
               <p className="academic-panel-subtitle" style={{ margin: 0 }}>
-                Preview expires {new Date(preview.expiresAt).toLocaleTimeString()}. Confirmation saves the entire batch.
+                Preview expires {new Date(preview.expiresAt).toLocaleTimeString()}. Confirm {preview.eligibleCount} eligible records; skip {preview.skippedCount} invalid rows.
               </p>
               <button type="button" className="dashboard-action" onClick={confirm} disabled={busy}>
                 Confirm Import
