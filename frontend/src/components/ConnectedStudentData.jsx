@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from "react";
+import { GraduationCap, UsersRound } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import useAdaptivePolling from "../hooks/useAdaptivePolling";
 import { READINESS_MESSAGES } from "../pages/StudentDataForm";
@@ -13,14 +14,11 @@ function ProviderTransfer({ item, onChanged }) {
   const dropdownRef = useRef(null);
 
   const academic = item.academic;
-  if (!academic) return null;
-
-  const isOwner = String(academic.provider?._id) === String(user.id || user._id);
-  const isRecipient = String(academic.pendingProvider?._id) === String(user.id || user._id);
-  if (!isOwner && !isRecipient) return null;
+  const isOwner = !!academic && String(academic.provider?._id) === String(user.id || user._id);
+  const isRecipient = !!academic && String(academic.pendingProvider?._id) === String(user.id || user._id);
 
   const eligibleProviders = (item.providers || []).filter(
-    (provider) => provider.id !== String(academic.provider?._id)
+    (provider) => provider.id !== String(academic?.provider?._id)
   );
 
   const selectedTargetProvider = eligibleProviders.find((p) => p.id === target);
@@ -35,6 +33,8 @@ function ProviderTransfer({ item, onChanged }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  if (!academic || (!isOwner && !isRecipient)) return null;
 
   const transfer = async (action) => {
     setBusy(true);
@@ -99,9 +99,14 @@ function ProviderTransfer({ item, onChanged }) {
           <div className="academic-transfer-row">
             {/* Custom Dropdown Trigger */}
             <div className="transfer-custom-picker" ref={dropdownRef}>
-              <div
+              <button
+                type="button"
                 className={`transfer-picker-trigger ${isOpen ? "is-open" : ""}`}
-                onClick={() => !busy && setIsOpen(!isOpen)}
+                disabled={busy}
+                aria-label="Choose receiving professor"
+                aria-expanded={isOpen}
+                onKeyDown={event => { if (event.key === 'Escape') setIsOpen(false); }}
+                onClick={() => setIsOpen(!isOpen)}
               >
                 <span className={selectedTargetProvider ? "picker-value" : "picker-placeholder"}>
                   {selectedTargetProvider ? selectedTargetProvider.fullName : "Choose professor..."}
@@ -119,13 +124,14 @@ function ProviderTransfer({ item, onChanged }) {
                     clipRule="evenodd"
                   />
                 </svg>
-              </div>
+              </button>
 
               {/* Floating Menu */}
               {isOpen && (
                 <div className="transfer-picker-menu">
                   {eligibleProviders.map((provider) => (
-                    <div
+                    <button
+                      type="button"
                       key={provider.id}
                       className={`transfer-picker-option ${target === provider.id ? "selected" : ""}`}
                       onClick={() => {
@@ -134,7 +140,7 @@ function ProviderTransfer({ item, onChanged }) {
                       }}
                     >
                       <span className="transfer-picker-option-name">{provider.fullName}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -194,17 +200,16 @@ export default function ConnectedStudentData() {
     });
   }, [students, searchQuery]);
 
-  if (loading) return <p className="academic-panel-subtitle">Loading connected student records...</p>;
-
   return (
-    <section className="academic-panel connected-students">
+    <section className="academic-panel connected-students" aria-labelledby="connected-records-heading" aria-busy={loading}>
       <div className="academic-panel-heading">
         <div>
           <span className="dashboard-eyebrow">Class Directory</span>
-          <h2>Connected Student Records</h2>
+          <h2 id="connected-records-heading">Connected Student Records</h2>
         </div>
-        <span className="student-count-chip">
-          {filteredStudents.length} of {students.length} Student{students.length === 1 ? "" : "s"}
+        <span className="student-count-chip" aria-live="polite">
+          <UsersRound size={14} aria-hidden="true" />
+          {loading ? "Loading students..." : `${filteredStudents.length} of ${students.length} Student${students.length === 1 ? "" : "s"}`}
         </span>
       </div>
 
@@ -231,6 +236,7 @@ export default function ConnectedStudentData() {
             </svg>
             <input
               type="text"
+              aria-label="Search connected students by name or email"
               className="student-search-input"
               placeholder="Search connected student by name or email address..."
               value={searchQuery}
@@ -251,9 +257,10 @@ export default function ConnectedStudentData() {
       )}
 
       {error && <p role="alert" className="academic-notice academic-notice--error">{error}</p>}
+      {loading && <p role="status" className="academic-notice">Loading connected student records...</p>}
 
-      {!students.length && (
-        <p className="academic-panel-subtitle">No connected students yet. Accept requests in Connections first.</p>
+      {!loading && !error && !students.length && (
+        <div className="academic-workspace-empty"><span className="academic-upload-icon" aria-hidden="true"><UsersRound size={23} /></span><div><h3>Your student records will appear here</h3><p>No connected students yet. Accept requests in Connections first.</p></div></div>
       )}
 
       {students.length > 0 && filteredStudents.length === 0 && (
@@ -270,7 +277,10 @@ export default function ConnectedStudentData() {
           <article className="connected-student-card" key={item.student.id}>
             {/* Pinned Top Row: Name on Left, Badge on Right */}
             <div className="connected-student-card__top">
-              <h3 className="connected-student-name">{item.student.fullName}</h3>
+              <div className="connected-student-identity">
+                <span className="connected-student-avatar" aria-hidden="true">{item.student.fullName.split(' ').filter(Boolean).map(part => part[0]).slice(0, 2).join('')}</span>
+                <div><h3 className="connected-student-name">{item.student.fullName}</h3><p className="connected-student-email">{item.student.email}</p></div>
+              </div>
               <span
                 className={`academic-source-badge ${
                   item.record ? "badge--success" : "badge--pending"
@@ -282,17 +292,17 @@ export default function ConnectedStudentData() {
 
             {/* Email and Readiness Message Below */}
             <p className="connected-student-subtext">
-              <strong>{item.student.email}</strong> · {READINESS_MESSAGES[item.readiness]}
+              {READINESS_MESSAGES[item.readiness]}
             </p>
 
-            {item.academic && (
-              <p className="academic-provenance">
-                Source: {item.academic.academicYear}, Semester {item.academic.semester} · Provider:{" "}
-                <strong>{item.academic.provider?.fullName || "Unavailable"}</strong> · Version{" "}
-                {item.academic.academicVersion}
-              </p>
-            )}
-
+            <div className="professor-record-layout">
+              {item.academic && <div className="academic-intro-card">
+                <span className="academic-upload-icon" aria-hidden="true"><GraduationCap size={22} /></span>
+                <div><h4>{item.academic.academicYear} · Semester {item.academic.semester}</h4>
+                  <p>Provider: <strong>{item.academic.provider?.fullName || "Unavailable"}</strong></p>
+                  <p>Record version {item.academic.academicVersion}</p>
+                </div>
+              </div>}
             {item.record && (
               <dl className="professor-student-metrics">
                 <div className="metric-tile">
@@ -314,6 +324,7 @@ export default function ConnectedStudentData() {
               </dl>
             )}
 
+            </div>
             <div className="student-forecast-badge">
               <span>
                 {item.forecast ? (

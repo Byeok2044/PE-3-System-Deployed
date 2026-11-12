@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BarChart3, Download, Pause, Play, RefreshCw, Search } from 'lucide-react';
+import { Download, FileSpreadsheet, Pause, Play, RefreshCw, Search } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import '../styles/ClassForecast.css';
 
@@ -136,16 +136,16 @@ export default function ClassForecastPanel({ importedBatchId, onRunningChange, o
   const counts = data?.summary;
 
   return <section className="academic-panel class-forecast-panel" aria-labelledby="class-forecast-heading">
-    <div className="academic-panel-heading"><div><span className="dashboard-eyebrow">Class Forecasts</span><h2 id="class-forecast-heading"><BarChart3 size={21} aria-hidden="true" /> Attrition Risk by Class</h2></div>
+    <div className="academic-panel-heading"><div><span className="dashboard-eyebrow">Class Forecasts</span><h2 id="class-forecast-heading">Attrition Risk by Class</h2></div>
       <button type="button" className="connection-button" disabled={running || loading} onClick={() => listBatches()}><RefreshCw size={15} /> Refresh imports</button></div>
     <p className="academic-panel-subtitle">Choose a confirmed CSV import to forecast each student from that source semester. Students must have complete personal information and an active connection to you as their academic provider.</p>
     <div className="class-forecast-toolbar"><label className="academic-form-group">Confirmed class import
       <select className="academic-input" value={batchId} disabled={running || loading} onChange={event => setBatchId(event.target.value)}>
         <option value="">Select a confirmed import</option>{batches.map(batch => <option key={batch._id} value={batch._id}>{batch.section || 'Class import'} · {batch.academicYear || 'Academic period'} · Semester {batch.semester || '—'} · {new Date(batch.committedAt).toLocaleString()} · {batch._id.slice(-6)}</option>)}
       </select></label>{cursor && <button type="button" className="connection-button" disabled={running || loading} onClick={() => listBatches(cursor)}>Load older imports</button>}</div>
-    {!loading && !batches.length && <p className="academic-notice">Confirm a student records CSV above to start a class forecast.</p>}
+    {!loading && !error && !batches.length && <div className="academic-workspace-empty"><span className="academic-upload-icon" aria-hidden="true"><FileSpreadsheet size={23} /></span><div><h3>Your class forecasts start with an import</h3><p>Confirm a student records CSV above to start a class forecast.</p></div></div>}
     {error && <p className="academic-notice academic-notice--error" role="alert">{error}</p>}
-    {loading && <p role="status">Loading class forecasts…</p>}
+    {loading && <p className="academic-notice" role="status">Loading class forecasts...</p>}
     {data && <>
       <p className="class-forecast-reference">{data.section || 'Class import'} · {data.academicYear}, Semester {data.semester} · Batch {data.batchId}{data.skipped > 0 && ` · ${data.skipped} invalid CSV rows skipped`}</p>
       <div className="class-forecast-summary" aria-label="Class risk totals">
@@ -155,7 +155,7 @@ export default function ClassForecastPanel({ importedBatchId, onRunningChange, o
       </div>
       <div className="class-forecast-progress"><progress value={counts.succeeded + counts.failed + counts.restricted} max={Math.max(counts.total, 1)} aria-label="Class forecasts processed" />
         <p aria-live="polite">{counts.succeeded} completed · {counts.failed} failed · {counts.remaining} remaining{counts.restricted > 0 && ` · ${counts.restricted} access unavailable`}</p></div>
-      <div className="class-forecast-actions">
+      <div className="class-forecast-actions academic-submit-row">
         <button type="button" className="dashboard-action" disabled={running || loading || counts.remaining === 0} onClick={() => run()}><Play size={16} />{counts.succeeded || counts.failed || counts.processing ? 'Resume Remaining Students' : 'Run Attrition Risk for This Class'}</button>
         <button type="button" className="connection-button" disabled={running || loading || !counts.failed} onClick={() => run(true)}><RefreshCw size={15} /> Retry Failed Students</button>
         {running && <button type="button" className="connection-button" disabled={pausing} onClick={() => { stop.current = true; setPausing(true); }}><Pause size={15} />{pausing ? 'Pausing after current student…' : 'Pause'}</button>}
@@ -164,7 +164,7 @@ export default function ClassForecastPanel({ importedBatchId, onRunningChange, o
       </div>
       {notice && <p className="academic-notice" role="status">{notice}</p>}
       <p className="academic-panel-subtitle">Keep this page open while a run is active. You can pause and return to this import later; completed forecasts are saved to student and professor History.</p>
-      <div className="class-forecast-toolbar"><label className="academic-form-group"><span><Search size={14} aria-hidden="true" /> Search students</span><input className="academic-input" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, email, or student ID" /></label>
+      <div className="class-forecast-toolbar class-forecast-filters"><label className="academic-form-group"><span><Search size={14} aria-hidden="true" /> Search students</span><input type="search" className="academic-input" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, email, or student ID" /></label>
         <label className="academic-form-group">Filter results<select className="academic-input" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All students</option><option value="low">Low risk</option><option value="medium">Medium risk</option><option value="high">High risk</option><option value="succeeded">Completed</option><option value="failed">Failed</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="restricted">Access unavailable</option></select></label></div>
       <ClassForecastResults data={data} search={search} filter={filter} />
       <p className="class-forecast-disclaimer">Low: below 20% · Medium: 20% to below 40% · High: 40% or above. These are estimates to guide academic support, not confirmation that a student will drop out.</p>

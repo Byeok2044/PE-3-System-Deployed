@@ -4,6 +4,7 @@ import ConnectedStudentData from "../components/ConnectedStudentData.jsx";
 import AcademicCsvImport from "../components/AcademicCsvImport.jsx";
 import ClassForecastPanel from "../components/ClassForecastPanel.jsx";
 import { useAuth } from "../context/AuthContext";
+import "../styles/ProfessorWorkspace.css";
 
 export default function ProfessorDashboardView({ user, activeTab }) {
   const { apiFetch } = useAuth();
@@ -41,7 +42,7 @@ export default function ProfessorDashboardView({ user, activeTab }) {
 
   if (activeTab === "data") {
     return (
-      <section className="workspace-section academic-workspace" id="data">
+      <section className="workspace-section professor-workspace" id="data">
         <div className="section-heading data-workspace-heading">
           <div>
             <p className="dashboard-eyebrow">Class Workspace</p>
@@ -59,6 +60,8 @@ export default function ProfessorDashboardView({ user, activeTab }) {
           </button>
         </div>
 
+        <p className="dashboard-subtext">Upload semester records, run class forecasts, and review the information shared by your connected students.</p>
+        <div className="professor-workspace-panels">
         <AcademicCsvImport
           disabled={classRunning}
           onImported={(result) => {
@@ -72,6 +75,7 @@ export default function ProfessorDashboardView({ user, activeTab }) {
           onCompleted={() => setImportRevision((value) => value + 1)}
         />
         <ConnectedStudentData key={importRevision} />
+        </div>
 
         {isTutorialOpen && (
           <div

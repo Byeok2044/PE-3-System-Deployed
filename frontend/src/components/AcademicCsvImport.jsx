@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { Download, FileSpreadsheet, Upload, CheckCheck } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import "../styles/AcademicWorkspace.css";
 
@@ -78,20 +79,21 @@ export default function AcademicCsvImport({ onImported, disabled = false }) {
   };
 
   return (
-    <section className="academic-panel academic-import">
+    <section className="academic-panel academic-import" aria-labelledby={`${fileInputId}-heading`} aria-busy={processing}>
       <div className="academic-panel-heading">
         <div>
           <span className="dashboard-eyebrow">Academic Records</span>
-          <h2>Upload Student Records</h2>
+          <h2 id={`${fileInputId}-heading`}>Upload Student Records</h2>
         </div>
-        <div className="class-forecast-actions">
-          <button type="button" className="connection-button" onClick={() => downloadTemplate()} disabled={busy}>Download CSV Template</button>
-          <button type="button" className="connection-button" onClick={() => downloadTemplate(true)} disabled={busy}>Download Sample CSV</button>
+        <div className="academic-template-actions">
+          <button type="button" className="connection-button" onClick={() => downloadTemplate()} disabled={busy}><Download size={15} aria-hidden="true" /> Download CSV Template</button>
+          <button type="button" className="connection-button" onClick={() => downloadTemplate(true)} disabled={busy}><FileSpreadsheet size={15} aria-hidden="true" /> Download Sample CSV</button>
         </div>
       </div>
+      <p className="academic-panel-subtitle">Add your class records for one source semester. Review the preview before publishing any changes.</p>
 
       <details className="academic-upload-format">
-        <summary>Student Record CSV Upload Format Instructions</summary>
+        <summary>CSV requirements and upload instructions</summary>
         <div className="academic-upload-format-content">
           <p><strong>File:</strong> One source semester per file, up to 500 students and 1 MB.</p>
           <p><strong>Requirement:</strong> Each student must have an accepted connection and designated you as the provider for that period.</p>
@@ -103,42 +105,32 @@ export default function AcademicCsvImport({ onImported, disabled = false }) {
       </details>
 
       <form className="academic-csv-upload-form" onSubmit={upload}>
-        <div className="academic-form-group academic-import-section">
-          <label htmlFor={`${fileInputId}-section`}>Section / Block (Optional)</label>
-          <input id={`${fileInputId}-section`} className="academic-input" value={section} maxLength={80} disabled={busy}
-            onChange={event => { setSection(event.target.value); setPreview(null); }} placeholder="e.g. BSIT 3-3" />
-        </div>
-        {/* Column 1: Custom Uniform File Picker */}
-        <div className="academic-form-group">
+        <div className="academic-form-group academic-import-file">
           <label htmlFor={fileInputId}>Student Records CSV</label>
-          <div className="academic-file-picker">
-            <input
-              id={fileInputId}
-              className="academic-file-input"
-              type="file"
-              accept=".csv,text/csv"
-              required
-              disabled={busy}
-              aria-label="Student records CSV"
-              onChange={(event) => {
-                setFile(event.target.files?.[0] || null);
-                setPreview(null);
-                setResult(null);
-              }}
-            />
-            <label className="academic-file-picker-button" htmlFor={fileInputId}>
-              Choose File
-            </label>
-            <span className="academic-file-name" aria-live="polite">
-              {file?.name || "No File Selected"}
-            </span>
+          <div className={`academic-upload-card ${file ? 'has-file' : ''}`}>
+            <span className="academic-upload-icon" aria-hidden="true"><FileSpreadsheet size={23} /></span>
+            <div className="academic-upload-description">
+              <strong title={file?.name} aria-live="polite">{file?.name || "Choose your class records"}</strong>
+              <span id={`${fileInputId}-help`}>{file ? `${(file.size / 1024).toFixed(1)} KB · Ready to validate` : "UTF-8 CSV · Up to 500 students · Maximum 1 MB"}</span>
+            </div>
+            <div className="academic-file-control">
+              <input id={fileInputId} className="academic-file-input" type="file" accept=".csv,text/csv" required disabled={busy}
+                aria-label="Student records CSV" aria-describedby={`${fileInputId}-help`}
+                onChange={(event) => { setFile(event.target.files?.[0] || null); setPreview(null); setResult(null); }} />
+              <label className="academic-file-picker-button" htmlFor={fileInputId}><Upload size={15} aria-hidden="true" /> {file ? "Change file" : "Choose file"}</label>
+            </div>
           </div>
         </div>
-
-        {/* Column 2: Correction Reason Text Box */}
+        <div className="academic-form-group academic-import-section">
+          <label htmlFor={`${fileInputId}-section`}>Section / Block <span className="academic-field-optional">Optional</span></label>
+          <input id={`${fileInputId}-section`} className="academic-input" value={section} maxLength={80} disabled={busy}
+            onChange={event => { setSection(event.target.value); setPreview(null); }} placeholder="e.g. BSIT 3-3" />
+          <small className="academic-field-help">Use a class label to find this import later.</small>
+        </div>
         <div className="academic-form-group">
-          <label>Correction Reason (Optional for initial / required for edits)</label>
+          <label htmlFor={`${fileInputId}-reason`}>Correction Reason</label>
           <input
+            id={`${fileInputId}-reason`}
             className="academic-input"
             value={reason}
             maxLength={500}
@@ -147,19 +139,24 @@ export default function AcademicCsvImport({ onImported, disabled = false }) {
               setReason(event.target.value);
               setPreview(null);
             }}
-            placeholder="Explain why this record is being uploaded or modified"
+            placeholder="e.g. Updated approved units after grade review"
           />
+          <small className="academic-field-help">Required when correcting a record; optional for new records.</small>
         </div>
-
-        {/* Column 3: Aligned Action Button */}
-        <button className="dashboard-action" disabled={busy || !file}>
-          {busy ? "Processing..." : "Validate and preview"}
-        </button>
+        <div className="academic-import-policy">
+          <label className="academic-import-options">
+            <input type="checkbox" checked={allowPartial} disabled={busy}
+              onChange={event => { setAllowPartial(event.target.checked); setPreview(null); }} />
+            <span><strong>Skip invalid rows</strong><small>Import eligible records only. Review skipped students before confirming.</small></span>
+          </label>
+        </div>
+        <div className="academic-submit-row">
+          <p>Validation creates a preview. Records are saved after you confirm.</p>
+          <button type="submit" className="dashboard-action" disabled={busy || !file}><CheckCheck size={16} aria-hidden="true" />
+            {busy ? "Processing..." : "Validate and preview"}
+          </button>
+        </div>
       </form>
-      <label className="academic-import-options"><input type="checkbox" checked={allowPartial} disabled={busy}
-        onChange={event => { setAllowPartial(event.target.checked); setPreview(null); }} />
-        Allow eligible rows to be imported and skip invalid rows (review before confirming)
-      </label>
 
       {error && <p role="alert" className="academic-notice academic-notice--error">{error}</p>}
       {result && (
@@ -200,7 +197,7 @@ export default function AcademicCsvImport({ onImported, disabled = false }) {
                         {row.action}
                       </span>
                       {row.errors.length > 0 && (
-                        <ul style={{ margin: "0.25rem 0 0", paddingLeft: "1rem", color: "#b91c1c" }}>
+                        <ul className="academic-preview-errors">
                           {row.errors.map((msg, i) => (
                             <li key={i}>{msg}</li>
                           ))}
@@ -214,8 +211,8 @@ export default function AcademicCsvImport({ onImported, disabled = false }) {
           </div>
 
           {preview.canConfirm && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", marginTop: "0.5rem" }}>
-              <p className="academic-panel-subtitle" style={{ margin: 0 }}>
+            <div className="academic-submit-row">
+              <p>
                 Preview expires {new Date(preview.expiresAt).toLocaleTimeString()}. Confirm {preview.eligibleCount} eligible records; skip {preview.skippedCount} invalid rows.
               </p>
               <button type="button" className="dashboard-action" onClick={confirm} disabled={busy}>
