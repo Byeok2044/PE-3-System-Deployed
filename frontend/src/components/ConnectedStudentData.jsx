@@ -3,6 +3,7 @@ import { GraduationCap, UsersRound } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import useAdaptivePolling from "../hooks/useAdaptivePolling";
 import { READINESS_MESSAGES } from "../pages/StudentDataForm";
+import { SOCIOECONOMIC_FIELDS, factorLabel } from "../utils/socioeconomicFactors";
 import "../styles/AcademicWorkspace.css";
 
 function ProviderTransfer({ item, onChanged }) {
@@ -325,6 +326,14 @@ export default function ConnectedStudentData() {
             )}
 
             </div>
+            <dl className="professor-student-metrics" aria-label="Current socioeconomic factors">
+              {SOCIOECONOMIC_FIELDS.map(([key, label]) => (
+                <div className="metric-tile" key={key}>
+                  <dt>{label}</dt>
+                  <dd>{factorLabel(item.profile?.[key])}</dd>
+                </div>
+              ))}
+            </dl>
             <div className="student-forecast-badge">
               <span>
                 {item.forecast ? (

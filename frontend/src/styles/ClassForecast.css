@@ -17,7 +17,7 @@
 .class-forecast-table small { display: block; margin-top: .3rem; max-width: 290px; overflow-wrap: anywhere; font-size: .74rem; color: var(--text-secondary, #475569); }
 .class-risk, .class-forecast-status { display: inline-block; padding: .3rem .55rem; border-radius: 6px; font-size: .77rem; font-weight: 600; text-transform: capitalize; }
 .class-risk--low, .class-forecast-status--succeeded { background: #dcfce7; color: #166534; }
-.class-risk--medium, .class-forecast-status--pending, .class-forecast-status--processing { background: #fef3c7; color: #92400e; }
+.class-risk--medium, .class-forecast-status--pending, .class-forecast-status--processing, .class-forecast-status--outdated { background: #fef3c7; color: #92400e; }
 .class-risk--high, .class-forecast-status--failed { background: #fee2e2; color: #991b1b; }
 .class-forecast-status--restricted { background: #e2e8f0; color: #334155; }
 .class-forecast-disclaimer { margin-top: 1rem; line-height: 1.6; color: var(--text-secondary, #475569); font-size: .82rem; }

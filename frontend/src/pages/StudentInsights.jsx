@@ -146,6 +146,7 @@ export default function StudentInsights({ onForecastComplete, latestForecast }) 
       </p>
 
       {error && <div className="login-alert" role="alert">{error}</div>}
+      {workspace.hasOutdatedForecast && !prediction && <p className="academic-notice" role="status">Your saved information changed. Run a new forecast to use your latest socioeconomic factors and academic record. Your previous forecasts remain in History.</p>}
 
       <button
         type="button"

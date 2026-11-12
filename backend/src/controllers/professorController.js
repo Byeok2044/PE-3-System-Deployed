@@ -11,7 +11,7 @@ exports.listConnectedStudentWorkspace = async (req, res, next) => {
       if (!student || !sameInstitution(student.institution, req.user.institution)) continue;
       const workspace = await loadWorkspace(student);
       students.push({ connectionId: connection._id, student: { id: student._id, fullName: student.fullName, email: student.email, institution: student.institution },
-        record: workspace.record, academic: workspace.academic, readiness: workspace.readiness,
+        profile: workspace.profile, record: workspace.record, academic: workspace.academic, readiness: workspace.readiness,
         academicPeriods: workspace.academicPeriods, providers: workspace.providers,
         forecast: workspace.latestForecast ? { ...workspace.latestForecast.forecast, createdAt: workspace.latestForecast.createdAt } : null,
         hasOutdatedForecast: workspace.hasOutdatedForecast });

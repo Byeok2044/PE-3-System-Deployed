@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import useAdaptivePolling from "../hooks/useAdaptivePolling";
+import { SOCIOECONOMIC_FIELDS as FIELDS } from "../utils/socioeconomicFactors";
 import "../styles/StudentDataForm.css";
 
 export const READINESS_MESSAGES = {
@@ -11,12 +12,6 @@ export const READINESS_MESSAGES = {
   profile_incomplete: "Complete your personal information below to enable forecasting.",
   ready: "Your academic record and personal information are ready for forecasting.",
 };
-
-const FIELDS = [
-  ["educationalSpecialNeeds", "Educational Support Needs"],
-  ["tuitionFeeStatus", "Tuition Fees Up to Date"],
-  ["scholarshipStatus", "Active Scholarship"],
-];
 
 const emptyProfile = { educationalSpecialNeeds: "", tuitionFeeStatus: "", scholarshipStatus: "" };
 
@@ -416,7 +411,7 @@ export default function StudentDataForm({ onSaveRecord }) {
           </div>
 
           <div className="academic-submit-row">
-            <p>Update flags before generating personal forecasts.</p>
+            <p>Saved changes are shared with your connected professors. Run a new forecast after changing a factor.</p>
             <button className="dashboard-action" disabled={busy}>
               {busy ? "Saving..." : "Save Personal Information"}
             </button>

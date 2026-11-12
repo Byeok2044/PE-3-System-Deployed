@@ -12,6 +12,8 @@ const Connection = require('../src/models/StudentProfessorConnection');
 const workspaceService = require('../src/utils/academicWorkspace');
 const controller = require('../src/controllers/academicImportController');
 const students = require('../src/controllers/studentRecordController');
+const professorController = require('../src/controllers/professorController');
+const history = require('../src/utils/professorHistory');
 const { HEADERS } = require('../src/utils/academicValidation');
 const restores = [];
 function stub(object, key, value) { const original = object[key]; object[key] = value; restores.push(() => { object[key] = original; }); }
@@ -74,6 +76,43 @@ test('forecast versions change with academic corrections and profile changes', a
   assert.notEqual((await workspaceService.loadWorkspace(student)).inputVersion, original.inputVersion);
   fixtures({ personal: { ...profile, tuitionFeeStatus: false, profileVersion: 2 } });
   assert.notEqual((await workspaceService.loadWorkspace(student)).inputVersion, original.inputVersion);
+});
+
+test('saving each socioeconomic factor updates the professor workspace and permits a fresh student ML forecast', async () => {
+  for (const field of ['educationalSpecialNeeds', 'tuitionFeeStatus', 'scholarshipStatus']) {
+    fixtures();
+    const original = await workspaceService.loadWorkspace(student);
+    const oldForecast = { _id: id(6), inputVersion: original.inputVersion, record: original.record,
+      forecast: { dropoutProbability: 0.4, gradeMaximum: 5 }, createdAt: new Date() };
+    fixtures({ latest: oldForecast });
+    const updated = { ...profile, [field]: !profile[field], profileVersion: 2 };
+    stub(Profile, 'findOneAndUpdate', async (_filter, update) => {
+      assert.equal(update.$set[field], updated[field]); assert.equal(update.$inc.profileVersion, 1);
+      stub(Profile, 'findOne', () => query(updated)); return updated;
+    });
+    stub(Activity, 'create', async () => ({}));
+    const body = Object.fromEntries(['educationalSpecialNeeds', 'tuitionFeeStatus', 'scholarshipStatus'].map(key => [key, updated[key]]));
+    const saved = await invoke(students.upsertMyRecord, { user: student, body }); assert.ifError(saved.error);
+    assert.equal(saved.body.profile[field], updated[field]); assert.equal(saved.body.hasOutdatedForecast, true);
+    assert.equal(saved.body.canForecast, true); assert.equal(saved.body.latestForecast, null);
+    assert.notEqual(saved.body.inputVersion, original.inputVersion);
+    stub(Connection, 'find', filter => query(filter.professor ? [{ _id: id(4), student }]
+      : [{ _id: id(4), professor, createdAt: new Date('2026-01-01') }]));
+    const shared = await invoke(professorController.listConnectedStudentWorkspace, { user: professor }); assert.ifError(shared.error);
+    assert.equal(shared.body.students[0].profile[field], updated[field]);
+    assert.equal(shared.body.students[0].record[field], updated[field]);
+    assert.equal(shared.body.students[0].hasOutdatedForecast, true); assert.equal(shared.body.students[0].forecast, null);
+    let inputs;
+    stub(axios, 'post', async (_url, fields) => { inputs = fields; return { data: { dropoutProbability: 0.1, riskLevel: 'low' } }; });
+    stub(User, 'findById', async () => student);
+    stub(history, 'saveForecastActivity', async (_student, workspace) => {
+      assert.equal(workspace.inputVersion, saved.body.inputVersion); return { _id: id(7), createdAt: new Date() };
+    });
+    // Low risk does not send alert emails.
+    const run = await invoke(require('../src/routes/mlRoutes').predictMyRecord, { user: student, body: {} }); assert.ifError(run.error);
+    assert.equal(inputs[field], updated[field]); assert.equal(run.body.activity.inputVersion, saved.body.inputVersion);
+    assert.equal(oldForecast.record[field], profile[field]);
+  }
 });
 test('latest forecast is hidden when inputs are outdated and remains a historical snapshot', async () => {
   const latest = { _id: id(6), inputVersion: 'old-version', record: { previousSemesterGrade: 1 }, forecast: { riskLevel: 'low' } };

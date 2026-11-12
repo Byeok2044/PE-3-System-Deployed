@@ -5,6 +5,7 @@ const Batch = require('../models/AcademicImportBatch');
 const Entry = require('../models/AcademicBatchForecast');
 const User = require('../models/User');
 const Academic = require('../models/AcademicRecord');
+const Profile = require('../models/StudentRecord');
 const Connection = require('../models/StudentProfessorConnection');
 const workspaceService = require('../utils/academicWorkspace');
 const history = require('../utils/professorHistory');
@@ -22,30 +23,45 @@ async function ownedBatch(req) {
   return batch;
 }
 function summary(rows, total = rows.length) {
-  const counts = { total, succeeded: 0, failed: 0, pending: total - rows.length, processing: 0, restricted: 0, low: 0, medium: 0, high: 0 };
+  const counts = { total, succeeded: 0, failed: 0, outdated: 0, pending: total - rows.length, processing: 0, restricted: 0, low: 0, medium: 0, high: 0 };
   for (const row of rows) {
     counts[row.status]++;
     if (row.status === 'succeeded' && ['low', 'medium', 'high'].includes(row.forecast?.riskLevel)) counts[row.forecast.riskLevel]++;
   }
-  counts.remaining = counts.pending + counts.processing;
+  counts.remaining = counts.pending + counts.processing + counts.outdated;
   return counts;
 }
 async function visibleResults(batch, professor) {
-  const entries = await Entry.find({ batch: batch._id }).sort({ rowNumber: 1 }).lean();
-  const [connections, academics] = await Promise.all([
+  const entries = await Entry.find({ batch: batch._id }).sort({ rowNumber: 1 }).populate('activity', 'profileVersion').lean();
+  const [connections, academics, profiles] = await Promise.all([
     Connection.find({ professor: professor._id, status: 'accepted', student: { $in: entries.map(row => row.student) } })
       .populate('student', 'institution emailVerified role').lean(),
     Academic.find({ _id: { $in: entries.map(row => row.academicRecord) }, provider: professor._id,
       institutionKey: batch.institutionKey }).select('_id student').lean(),
+    Profile.find({ user: { $in: entries.map(row => row.student) } }).select(['user', 'profileVersion', ...PROFILE_FIELDS].join(' ')).lean(),
   ]);
   const connected = new Set(connections.filter(item => item.student?.role === 'student' && item.student.emailVerified &&
     institutionKey(item.student.institution) === batch.institutionKey).map(item => String(item.student._id)));
   const provided = new Set(academics.map(item => String(item._id)));
-  const rows = entries.map(row => connected.has(String(row.student)) && provided.has(String(row.academicRecord)) ? {
-    id: row._id, studentId: row.student, studentName: row.studentName, studentEmail: row.studentEmail,
-    rowNumber: row.rowNumber, status: row.status, error: row.error, forecast: row.forecast,
-    academicVersion: row.academicVersion, inputVersion: row.inputVersion, completedAt: row.completedAt,
-  } : { id: row._id, rowNumber: row.rowNumber, status: 'restricted', error: 'Connection or academic provider access is no longer available.' });
+  const personal = new Map(profiles.map(item => [String(item.user), item]));
+  const rows = entries.map(row => {
+    if (!connected.has(String(row.student)) || !provided.has(String(row.academicRecord))) {
+      return { id: row._id, rowNumber: row.rowNumber, status: 'restricted', error: 'Connection or academic provider access is no longer available.' };
+    }
+    const profile = personal.get(String(row.student));
+    // Older class results store the version on their immutable History activity.
+    const forecastProfileVersion = row.profileVersion ?? row.activity?.profileVersion;
+    const outdated = row.status === 'succeeded' && (!PROFILE_FIELDS.every(key => typeof profile?.[key] === 'boolean') ||
+      forecastProfileVersion === undefined || forecastProfileVersion !== (profile?.profileVersion || 0));
+    return {
+      id: row._id, studentId: row.student, studentName: row.studentName, studentEmail: row.studentEmail,
+      rowNumber: row.rowNumber, status: outdated ? 'outdated' : row.status,
+      error: outdated ? 'Personal information changed. Rerun this forecast using the latest saved factors.' : row.error,
+      forecast: row.status === 'succeeded' && !outdated ? row.forecast : null, profile: workspaceService.pick(profile, PROFILE_FIELDS),
+      profileVersion: profile?.profileVersion || 0, forecastProfileVersion,
+      academicVersion: row.academicVersion, inputVersion: row.inputVersion, completedAt: row.completedAt,
+    };
+  });
   return { batchId: batch._id, section: batch.section || '', academicYear: batch.academicYear || batch.rows[0]?.values.academicYear,
     semester: batch.semester || batch.rows[0]?.values.semester, committedAt: batch.committedAt,
     skipped: batch.skippedCount || 0, initialized: entries.length === batch.rows.length,
@@ -109,9 +125,23 @@ exports.runEntry = async (req, res, next) => {
     if (!entry) {
       const existing = await Entry.findOne({ _id: req.params.entryId, batch: batch._id, professor: req.user._id }).lean();
       if (!existing) throw fail('Forecast item not found. Initialize this batch first.', 404);
-      // Repeated requests after a lost response are harmless.
-      return res.status(existing.status === 'succeeded' ? 200 : 409).json({ status: existing.status,
-        message: existing.status === 'succeeded' ? 'Forecast already saved.' : 'This forecast is already running. Refresh results or retry after its request expires.' });
+      if (existing.status === 'succeeded') {
+        const { workspace } = await eligibleWorkspace(existing, batch, req.user);
+        // Repeated requests with the same inputs remain harmless. Only a changed
+        // server-side input version can reopen a completed work item.
+        if (existing.inputVersion === workspace.inputVersion) {
+          // Recover version metadata for older entries even if their optional
+          // student History item was deleted. The forecast itself stays intact.
+          if (existing.profileVersion === undefined) await Entry.updateOne({ _id: existing._id, status: 'succeeded', inputVersion: workspace.inputVersion },
+            { $set: { profileVersion: workspace.profile.profileVersion || 0 } });
+          return res.json({ status: 'succeeded', message: 'Forecast already saved.' });
+        }
+        entry = await Entry.findOneAndUpdate({ _id: existing._id, batch: batch._id, professor: req.user._id,
+          status: 'succeeded', inputVersion: existing.inputVersion ?? { $exists: false }, activity: existing.activity ?? { $exists: false } },
+        { $set: { status: 'processing', error: '', leaseToken: crypto.randomUUID(), leaseExpiresAt: new Date(Date.now() + 150000) } }, { new: true });
+      }
+      if (!entry) return res.status(409).json({ status: 'processing',
+        message: 'This forecast is already running. Refresh results or retry after its request expires.' });
     }
     try {
       const { student, workspace } = await eligibleWorkspace(entry, batch, req.user);

@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 // One durable work item per student in a confirmed import. Claims expire after
-// interrupted requests; successful items are never claimed again.
+// interrupted requests; successful items can be claimed again after inputs change.
 const schema = new mongoose.Schema({
   batch: { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicImportBatch', required: true },
   professor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -17,6 +17,7 @@ const schema = new mongoose.Schema({
   error: String,
   forecast: mongoose.Schema.Types.Mixed,
   inputVersion: String,
+  profileVersion: Number,
   activity: { type: mongoose.Schema.Types.ObjectId, ref: 'StudentActivity' },
   completedAt: Date,
 }, { timestamps: true });

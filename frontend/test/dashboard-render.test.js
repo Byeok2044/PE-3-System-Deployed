@@ -37,7 +37,7 @@ for (const role of ['student', 'professor']) {
         assert.match(html, /href="\/dashboard\/data"/);
         assert.match(html, /href="\/dashboard\/connections"/);
         assert.match(html, /href="\/dashboard\/history"/);
-        if (route === '/dashboard/data' && role === 'professor') assert.match(html, /Validate and preview/);
+        if (route === '/dashboard/data' && role === 'professor') assert.match(html, /Validate and preview/i);
         if (route === '/dashboard/history' && role === 'professor') assert.match(html, /Professor History/);
       } finally { delete globalThis.__dashboardRenderAuth; }
     });

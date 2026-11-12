@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Download, FileSpreadsheet, Pause, Play, RefreshCw, Search } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import useAdaptivePolling from '../hooks/useAdaptivePolling';
+import { SOCIOECONOMIC_FIELDS, factorLabel } from '../utils/socioeconomicFactors';
 import '../styles/ClassForecast.css';
 
 export function ClassForecastResults({ data, search = '', filter = 'all' }) {
@@ -9,14 +11,15 @@ export function ClassForecastResults({ data, search = '', filter = 'all' }) {
     (filter === 'all' || row.status === filter || (row.status === 'succeeded' && row.forecast?.riskLevel === filter)));
   return <div className="academic-table-scroll class-forecast-table"><table>
     <caption>Individual forecasts for {data.section || 'this import'} · {data.academicYear}, Semester {data.semester}</caption>
-    <thead><tr><th scope="col">Student</th><th scope="col">Source semester</th><th scope="col">Estimated dropout probability</th><th scope="col">Risk level</th><th scope="col">Predicted grade</th><th scope="col">Status / details</th></tr></thead>
+    <thead><tr><th scope="col">Student</th><th scope="col">Source semester</th><th scope="col">Current personal factors</th><th scope="col">Estimated dropout probability</th><th scope="col">Risk level</th><th scope="col">Predicted grade</th><th scope="col">Status / details</th></tr></thead>
     <tbody>{rows.map(row => <tr key={row.id}>
       <td><strong>{row.studentName || 'Access unavailable'}</strong><small>{row.studentEmail}</small>{row.studentId && <small>ID: {row.studentId}</small>}</td>
       <td>{data.academicYear}<small>Semester {data.semester}{row.academicVersion !== undefined && ` · Record v${row.academicVersion}`}</small></td>
-      <td>{row.status === 'succeeded' ? `${(row.forecast.dropoutProbability * 100).toFixed(2)}%` : '—'}</td>
+      <td>{row.status !== 'restricted' && SOCIOECONOMIC_FIELDS.map(([key, label]) => <small key={key}>{label}: {factorLabel(row.profile?.[key])}</small>)}</td>
+      <td>{row.status === 'succeeded' ? `${(row.forecast.dropoutProbability * 100).toFixed(2)}%` : '-'}</td>
       <td>{row.status === 'succeeded' ? <span className={`class-risk class-risk--${row.forecast.riskLevel}`}>{row.forecast.riskLevel}</span> : '—'}</td>
       <td>{row.status === 'succeeded' ? `${row.forecast.predictedNextSemesterGrade} / ${row.forecast.gradeMaximum}` : '—'}</td>
-      <td><span className={`class-forecast-status class-forecast-status--${row.status}`}>{row.status === 'succeeded' ? 'Completed' : row.status}</span>
+      <td><span className={`class-forecast-status class-forecast-status--${row.status}`}>{row.status === 'succeeded' ? 'Completed' : row.status === 'outdated' ? 'Inputs changed' : row.status}</span>
         {row.error && <small>{row.error}</small>}{row.completedAt && <small>{new Date(row.completedAt).toLocaleString()}</small>}
         {row.forecast?.modelVersion && <small>Model: {row.forecast.modelVersion}</small>}</td>
     </tr>)}</tbody>
@@ -39,6 +42,8 @@ export default function ClassForecastPanel({ importedBatchId, onRunningChange, o
   const mounted = useRef(false);
   const stop = useRef(false);
   const activeRun = useRef(false);
+  const selectedBatch = useRef(batchId);
+  selectedBatch.current = batchId;
 
   useEffect(() => {
     mounted.current = true;
@@ -70,7 +75,7 @@ export default function ClassForecastPanel({ importedBatchId, onRunningChange, o
   const baseUrl = `/api/professor/academic-imports/${batchId}/forecasts`;
   const refresh = async () => {
     const result = await request(baseUrl);
-    if (mounted.current) setData(result);
+    if (mounted.current && selectedBatch.current === batchId) setData(result);
     return result;
   };
   useEffect(() => {
@@ -84,7 +89,14 @@ export default function ClassForecastPanel({ importedBatchId, onRunningChange, o
     return () => { cancelled = true; };
   }, [apiFetch, batchId]);
 
-  const run = async (retryFailed = false) => {
+  useAdaptivePolling(async () => {
+    try {
+      const result = await request(baseUrl);
+      if (mounted.current && selectedBatch.current === batchId && !activeRun.current) setData(result);
+    } catch { /* Keep results visible and retry on the next refresh. */ }
+  }, { intervalMs: 15000, enabled: Boolean(batchId && data) && !running });
+
+  const run = async (mode = 'remaining') => {
     if (activeRun.current) return;
     activeRun.current = true; stop.current = false;
     setRunning(true); setPausing(false); setError('');
@@ -95,7 +107,8 @@ export default function ClassForecastPanel({ importedBatchId, onRunningChange, o
       const initial = await request(baseUrl, { method: 'POST' });
       if (!mounted.current) return;
       setData(initial);
-      const queue = initial.rows.filter(row => retryFailed ? row.status === 'failed' : ['pending', 'processing'].includes(row.status));
+      const queue = initial.rows.filter(row => mode === 'failed' ? row.status === 'failed'
+        : mode === 'outdated' ? row.status === 'outdated' : ['pending', 'processing', 'outdated'].includes(row.status));
       let servicePaused = false;
       for (const row of queue) {
         if (stop.current || !mounted.current) break;
@@ -157,15 +170,17 @@ export default function ClassForecastPanel({ importedBatchId, onRunningChange, o
         <p aria-live="polite">{counts.succeeded} completed · {counts.failed} failed · {counts.remaining} remaining{counts.restricted > 0 && ` · ${counts.restricted} access unavailable`}</p></div>
       <div className="class-forecast-actions academic-submit-row">
         <button type="button" className="dashboard-action" disabled={running || loading || counts.remaining === 0} onClick={() => run()}><Play size={16} />{counts.succeeded || counts.failed || counts.processing ? 'Resume Remaining Students' : 'Run Attrition Risk for This Class'}</button>
-        <button type="button" className="connection-button" disabled={running || loading || !counts.failed} onClick={() => run(true)}><RefreshCw size={15} /> Retry Failed Students</button>
+        <button type="button" className="connection-button" disabled={running || loading || !counts.outdated} onClick={() => run('outdated')}><RefreshCw size={15} /> Rerun Updated Students ({counts.outdated || 0})</button>
+        <button type="button" className="connection-button" disabled={running || loading || !counts.failed} onClick={() => run('failed')}><RefreshCw size={15} /> Retry Failed Students</button>
         {running && <button type="button" className="connection-button" disabled={pausing} onClick={() => { stop.current = true; setPausing(true); }}><Pause size={15} />{pausing ? 'Pausing after current student…' : 'Pause'}</button>}
         <button type="button" className="connection-button" disabled={running || loading} onClick={() => { setError(''); refresh().catch(err => setError(err.message)); }}>Refresh results</button>
         <button type="button" className="connection-button" disabled={running || !data.rows.length} onClick={exportResults}><Download size={15} /> Download Results CSV</button>
       </div>
       {notice && <p className="academic-notice" role="status">{notice}</p>}
+      {counts.outdated > 0 && <p className="academic-notice" role="status">{counts.outdated} student forecast{counts.outdated === 1 ? '' : 's'} need updating after personal information changed. Rerun Updated Students uses their latest saved factors. Previous forecasts remain in History.</p>}
       <p className="academic-panel-subtitle">Keep this page open while a run is active. You can pause and return to this import later; completed forecasts are saved to student and professor History.</p>
       <div className="class-forecast-toolbar class-forecast-filters"><label className="academic-form-group"><span><Search size={14} aria-hidden="true" /> Search Students</span><input type="search" className="academic-input" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, email, or student ID" /></label>
-        <label className="academic-form-group">Filter Results<select className="academic-input" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All Students</option><option value="low">Low Risk</option><option value="medium">Medium Risk</option><option value="high">High Risk</option><option value="succeeded">Completed</option><option value="failed">Failed</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="restricted">Access unavailable</option></select></label></div>
+        <label className="academic-form-group">Filter Results<select className="academic-input" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All Students</option><option value="low">Low Risk</option><option value="medium">Medium Risk</option><option value="high">High Risk</option><option value="succeeded">Completed</option><option value="outdated">Inputs Changed</option><option value="failed">Failed</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="restricted">Access unavailable</option></select></label></div>
       <ClassForecastResults data={data} search={search} filter={filter} />
       <p className="class-forecast-disclaimer">Low: below 20% · Medium: 20% to below 40% · High: 40% or above. These are estimates to guide academic support, not confirmation that a student will drop out.</p>
     </>}

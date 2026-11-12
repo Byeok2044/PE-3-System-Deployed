@@ -76,7 +76,7 @@ async function saveForecastActivity(student, workspace, forecast, options = {}) 
       // Saving both histories and completing the work item in one transaction
       // prevents duplicate forecasts after a timeout or simultaneous retry.
       const saved = await Entry.updateOne({ _id: options.batchEntry._id, status: 'processing', leaseToken: options.batchEntry.leaseToken },
-        { $set: { status: 'succeeded', forecast, activity: id, inputVersion: workspace.inputVersion, completedAt: activity.createdAt, error: '' },
+        { $set: { status: 'succeeded', forecast, activity: id, inputVersion: workspace.inputVersion, profileVersion: version, completedAt: activity.createdAt, error: '' },
           $unset: { leaseToken: 1, leaseExpiresAt: 1 } }, { session });
       if (saved.modifiedCount !== 1) throw fail('This forecast was claimed by another request. Refresh the class results.', 409);
     }

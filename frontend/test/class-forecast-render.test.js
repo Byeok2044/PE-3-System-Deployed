@@ -30,7 +30,7 @@ const data = { initialized: true, section: 'BSIT 3-3', academicYear: '2025-2026'
 const results = options => renderToStaticMarkup(React.createElement(page.ClassForecastResults, { data, ...options }));
 test('professor class panel presents confirmed imports without automatically running forecasts', () => {
   const html = renderToStaticMarkup(React.createElement(page.default));
-  assert.match(html, /Attrition Risk by Class/); assert.match(html, /Confirmed class import/); assert.match(html, /Confirm a student records CSV/);
+  assert.match(html, /Attrition Risk by Class/); assert.match(html, /Confirmed class import/i); assert.match(html, /Confirm a student records CSV/);
 });
 test('class results preserve zero probability, original grading scale, and source provenance', () => {
   const html = results();
@@ -46,4 +46,14 @@ test('class search matches names, account email, and student identifier, togethe
     const html = results({ search }); assert.match(html, /Alice/); assert.doesNotMatch(html, /Bob|Carol/);
   }
   assert.match(results({ search: 'Alice', filter: 'high' }), /No students match/);
+});
+
+test('updated factors remain visible while old risk values are hidden until rerun', () => {
+  const changed = { ...data, rows: [{ ...data.rows[1], status: 'outdated', profile: {
+    educationalSpecialNeeds: false, tuitionFeeStatus: false, scholarshipStatus: true,
+  }, error: 'Personal information changed. Rerun this forecast using the latest saved factors.' }] };
+  const html = renderToStaticMarkup(React.createElement(page.ClassForecastResults, { data: changed, filter: 'outdated' }));
+  assert.match(html, /Inputs changed/); assert.match(html, /Tuition Fees Up to Date: No/);
+  assert.match(html, /Active Scholarship: Yes/); assert.match(html, /Educational Support Needs: No/);
+  assert.doesNotMatch(html, /40\.00%|class-risk--high|3 \/ 5/);
 });

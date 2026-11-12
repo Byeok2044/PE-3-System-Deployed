@@ -20,7 +20,7 @@ const batch = { _id: id(3), professor: id(1), institutionKey: 'school a', status
   academicYear: '2025-2026', semester: 1, rows: [{ student: id(2), studentName: 'Student One', recordId: id(4), expectedVersion: 0,
     action: 'new', rowNumber: 2, values: { studentEmail: 'student@example.com', academicYear: '2025-2026', semester: 1 } }] };
 const entry = { _id: id(5), student: id(2), professor: id(1), batch: id(3), academicRecord: id(4), academicVersion: 1,
-  studentName: 'Student One', studentEmail: 'student@example.com', rowNumber: 2, status: 'processing', leaseToken: 'lease' };
+  studentName: 'Student One', studentEmail: 'student@example.com', rowNumber: 2, status: 'processing', leaseToken: 'lease', profileVersion: 1, inputVersion: 'version' };
 const profile = { educationalSpecialNeeds: false, tuitionFeeStatus: true, scholarshipStatus: false, profileVersion: 1 };
 const workspace = { canForecast: true, inputVersion: 'version', profile, record: { ...profile, academicRecordId: id(4), academicVersion: 1,
   academicYear: '2025-2026', semester: 1, provider: professor, attendance: 'night', previousSemesterGrade: 2.25, gradeMaximum: 5,
@@ -61,6 +61,7 @@ function visibleFixture(entries = [{ ...entry, status: 'succeeded', forecast }],
   batchFixture(); stub(Entry, 'find', () => query(entries));
   stub(Connection, 'find', () => query(allowed ? [{ student }] : []));
   stub(Academic, 'find', () => query(allowed ? [{ _id: id(4), student: student._id }] : []));
+  stub(Profile, 'find', () => query([{ user: student._id, ...profile }]));
 }
 
 test('all class endpoints deny students and unverified professors before querying batches', async () => {
@@ -172,7 +173,7 @@ test('CSV exports include source version and model provenance and neutralize spr
 });
 test('batch totals count failure and remaining students separately from risk tiers', () => {
   assert.deepEqual(controller.summary([{ status: 'succeeded', forecast }, { status: 'failed' }, { status: 'processing' }, { status: 'restricted' }], 5),
-    { total: 5, succeeded: 1, failed: 1, pending: 1, processing: 1, restricted: 1, low: 0, medium: 0, high: 1, remaining: 2 });
+    { total: 5, succeeded: 1, failed: 1, outdated: 0, pending: 1, processing: 1, restricted: 1, low: 0, medium: 0, high: 1, remaining: 2 });
 });
 test('both histories and work-item completion share the same transaction and professor actor', async () => {
   const session = { withTransaction: async callback => callback(), endSession: async () => {} };
@@ -187,7 +188,7 @@ test('both histories and work-item completion share the same transaction and pro
   stub(Event, 'create', async (rows, options) => { assert.equal(options.session, session); writes.push(rows[0]); });
   stub(Entry, 'updateOne', async (filter, update, options) => {
     assert.equal(options.session, session); assert.equal(filter.leaseToken, entry.leaseToken);
-    assert.equal(update.$set.status, 'succeeded'); writes.push(update); return { modifiedCount: 1 };
+    assert.equal(update.$set.status, 'succeeded'); assert.equal(update.$set.profileVersion, profile.profileVersion); writes.push(update); return { modifiedCount: 1 };
   });
   await history.saveForecastActivity(student, workspace, forecast, { actor: professor, batchEntry: entry, section: 'BSIT 3-3' });
   assert.equal(writes.length, 3); assert.equal(writes[0].generatedBy, professor._id); assert.equal(writes[0].batchId, batch._id);
@@ -195,4 +196,73 @@ test('both histories and work-item completion share the same transaction and pro
   assert.equal(writes[1].details.batchId, batch._id); assert.equal(writes[1].student.id, student._id);
   stub(Entry, 'updateOne', async () => ({ modifiedCount: 0 }));
   await assert.rejects(history.saveForecastActivity(student, workspace, forecast, { actor: professor, batchEntry: entry }), error => error.status === 409);
+});
+
+test('changed socioeconomic profiles hide old class risks and become eligible for rerun and export', async () => {
+  visibleFixture();
+  stub(Profile, 'find', () => query([{ user: student._id, ...profile, scholarshipStatus: true, profileVersion: 2 }]));
+  const res = await invoke(controller.results); assert.ifError(res.error);
+  assert.equal(res.body.rows[0].status, 'outdated'); assert.equal(res.body.rows[0].forecast, null);
+  assert.equal(res.body.rows[0].profile.scholarshipStatus, true);
+  assert.equal(res.body.rows[0].forecastProfileVersion, 1); assert.equal(res.body.rows[0].profileVersion, 2);
+  assert.equal(res.body.summary.outdated, 1); assert.equal(res.body.summary.remaining, 1);
+  assert.equal(res.body.summary.succeeded, 0); assert.equal(res.body.summary.high, 0);
+  const csv = await invoke(controller.exportCsv); assert.ifError(csv.error);
+  assert.match(csv.body, /outdated/); assert.doesNotMatch(csv.body, /test-model-v1|"high"/);
+});
+
+test('existing class forecasts use the saved History profile version before the new field exists', async () => {
+  visibleFixture([{ ...entry, profileVersion: undefined, activity: { profileVersion: 1 }, status: 'succeeded', forecast }]);
+  let res = await invoke(controller.results); assert.ifError(res.error); assert.equal(res.body.rows[0].status, 'succeeded');
+  stub(Profile, 'find', () => query([{ user: student._id, ...profile, profileVersion: 2 }]));
+  res = await invoke(controller.results); assert.ifError(res.error); assert.equal(res.body.rows[0].status, 'outdated');
+});
+
+test('a completed class item can rerun with changed server inputs while guarding against concurrent claims', async () => {
+  const calls = runFixture();
+  const existing = { ...entry, status: 'succeeded', inputVersion: 'previous', activity: id(9) };
+  stub(Entry, 'findOne', () => query(existing));
+  const claims = [];
+  stub(Entry, 'findOneAndUpdate', async (filter, update) => {
+    claims.push(filter);
+    if (filter.status !== 'succeeded') return null;
+    assert.equal(filter.inputVersion, 'previous'); assert.equal(filter.activity, id(9));
+    assert.equal(update.$set.status, 'processing');
+    return { ...existing, ...update.$set };
+  });
+  stub(workspaces, 'loadWorkspace', async () => ({ ...workspace, profile: { ...profile, profileVersion: 2, tuitionFeeStatus: false },
+    record: { ...workspace.record, profileVersion: 2, tuitionFeeStatus: false } }));
+  let res = await invoke(controller.runEntry); assert.ifError(res.error); assert.equal(res.body.status, 'succeeded');
+  assert.equal(claims.length, 2); assert.equal(calls.ml[0][1].tuitionFeeStatus, false);
+  assert.equal(calls.saves.length, 1); assert.equal(calls.saves[0][1].profile.profileVersion, 2);
+  // Another request already claimed the same saved input version.
+  stub(Entry, 'findOneAndUpdate', async () => null);
+  res = await invoke(controller.runEntry); assert.ifError(res.error); assert.equal(res.code, 409);
+  assert.equal(calls.ml.length, 1); assert.equal(calls.saves.length, 1);
+});
+
+test('a changed profile cannot reopen a class forecast after the provider is transferred', async () => {
+  const calls = runFixture();
+  stub(Entry, 'findOneAndUpdate', async () => null);
+  stub(Entry, 'findOne', () => query({ ...entry, status: 'succeeded', inputVersion: 'previous' }));
+  stub(workspaces, 'loadWorkspace', async () => ({ ...workspace, record: { ...workspace.record, provider: { _id: id(7) } } }));
+  const res = await invoke(controller.runEntry); assert.equal(res.error.status, 403);
+  assert.equal(calls.ml.length, 0); assert.equal(calls.saves.length, 0);
+});
+
+test('unchanged legacy class results recover profile metadata without running ML or replacing History', async () => {
+  const calls = runFixture();
+  stub(Entry, 'findOneAndUpdate', async () => null);
+  stub(Entry, 'findOne', () => query({ ...entry, status: 'succeeded', profileVersion: undefined, activity: undefined }));
+  const res = await invoke(controller.runEntry); assert.ifError(res.error); assert.equal(res.body.status, 'succeeded');
+  assert.equal(calls.ml.length, 0); assert.equal(calls.saves.length, 0);
+  assert.equal(calls.updates.length, 1); assert.deepEqual(calls.updates[0][1], { $set: { profileVersion: 1 } });
+});
+
+test('a failed rerun does not export its previous successful risk as a new result', async () => {
+  visibleFixture([{ ...entry, status: 'failed', forecast, error: 'The forecasting service is starting.' }]);
+  const res = await invoke(controller.results); assert.ifError(res.error);
+  assert.equal(res.body.rows[0].status, 'failed'); assert.equal(res.body.rows[0].forecast, null);
+  const csv = await invoke(controller.exportCsv); assert.ifError(csv.error);
+  assert.match(csv.body, /failed/); assert.doesNotMatch(csv.body, /test-model-v1|"high"/);
 });
