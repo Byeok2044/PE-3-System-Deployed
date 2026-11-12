@@ -560,7 +560,7 @@ function AdvisorDashboardModule({ user }) {
 }
 
 export default function Dashboard() {
-  const { user, logout, apiFetch, sessionError, retrySession } = useAuth();
+  const { user, apiFetch, sessionError, retrySession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -645,8 +645,7 @@ export default function Dashboard() {
 
   const handleConfirmLogout = () => {
     setShowLogoutModal(false);
-    logout();
-    navigate("/login", { replace: true });
+    navigate("/logout", { replace: true });
   };
 
   const handleCloseLogoutModal = () => {

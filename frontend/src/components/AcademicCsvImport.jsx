@@ -153,7 +153,7 @@ export default function AcademicCsvImport({ onImported, disabled = false }) {
 
         {/* Column 3: Aligned Action Button */}
         <button className="dashboard-action" disabled={busy || !file}>
-          {busy ? "Processing..." : "Validate and preview"}
+          {busy ? "Processing..." : "Validate and Preview"}
         </button>
       </form>
       <label className="academic-import-options"><input type="checkbox" checked={allowPartial} disabled={busy}
