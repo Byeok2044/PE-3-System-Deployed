@@ -11,6 +11,19 @@ const professorHistory = require('../utils/professorHistory');
 const router = express.Router();
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 
+// Public, read-only warm-up route. Use the configured ML host so browsers do
+// not need direct cross-origin access to the Python service.
+router.get('/health', async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const { data } = await axios.get(ML_SERVICE_URL.replace(/\/$/, '') + '/health', { timeout: 90000 });
+    const ready = data?.status === 'ok';
+    res.status(ready ? 200 : 503).json({ status: ready ? 'ok' : 'degraded', service: 'retainify-ml' });
+  } catch {
+    res.status(503).json({ status: 'unavailable', service: 'retainify-ml' });
+  }
+});
+
 async function predictMyRecord(req, res, next) {
   try {
     if (req.user.role !== 'student') throw fail('Only students can run their personal forecast.', 403);

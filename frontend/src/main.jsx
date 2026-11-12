@@ -12,15 +12,22 @@ import PrivacyPolicy from "./pages/PrivacyPolicy.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import useServiceKeepAlive from "./hooks/useServiceKeepAlive.js";
 import "./styles/Global.css";
 import "./styles/Responsive.css";
 
 const DatasetTransparency = React.lazy(() => import("./pages/DatasetTransparency.jsx"));
 
+function ServiceKeepAlive() {
+  useServiceKeepAlive();
+  return null;
+}
+
 // This finds the <div id="root"> in your index.html and renders the app inside it
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
+      <ServiceKeepAlive />
       <AuthProvider>
         <Routes>
           <Route path="/" element={<Home />} />
