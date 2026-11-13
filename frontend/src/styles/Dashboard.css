@@ -1418,6 +1418,7 @@
 }
 
 .forecast-results { margin-top: 1.2rem; }
+.insights-container .forecast-outdated-notice { margin-bottom: 0.75rem; }
 .forecast-spin { animation: forecast-spin 0.9s linear infinite; }
 @keyframes forecast-spin { to { transform: rotate(360deg); } }
 
@@ -3160,11 +3161,6 @@
   outline: none;
 }
 
-#data .data-workspace-help[aria-expanded="true"] {
-  position: relative;
-  z-index: 2101;
-}
-
 .academic-tutorial-backdrop {
   position: fixed;
   inset: 0;
@@ -3285,7 +3281,6 @@
 
 .academic-tutorial-opt-out {
   display: inline-flex;
-  align-items: flex-start;
   gap: 0.5rem;
   color: #475569;
   font-size: 0.82rem;

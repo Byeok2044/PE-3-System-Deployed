@@ -601,15 +601,6 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    if (!isDataTutorialOpen) return undefined;
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") setIsDataTutorialOpen(false);
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isDataTutorialOpen]);
-
-  useEffect(() => {
     if (location.pathname === '/dashboard/profile') {
       setShowProfile(true);
       navigate('/dashboard', { replace: true });
@@ -1171,7 +1162,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 className="data-workspace-help"
-                onClick={() => setIsDataTutorialOpen((open) => !open)}
+                onClick={() => setIsDataTutorialOpen(true)}
                 aria-label={isDataTutorialOpen ? "Close Data Workspace tutorial" : "Open Data Workspace tutorial"}
                 aria-expanded={isDataTutorialOpen}
                 aria-controls={isDataTutorialOpen ? "student-data-tutorial" : undefined}
@@ -1185,12 +1176,7 @@ export default function Dashboard() {
             </p>
             <StudentDataForm onSaveRecord={processAndStoreRecord} />
             {isDataTutorialOpen && (
-              <div
-                className="academic-tutorial-backdrop"
-                onClick={(event) => {
-                  if (event.target === event.currentTarget) setIsDataTutorialOpen(false);
-                }}
-              >
+              <div className="academic-tutorial-backdrop">
                 <section
                   id="student-data-tutorial"
                   className="academic-tutorial-modal"
@@ -1214,6 +1200,15 @@ export default function Dashboard() {
                         This section displays the academic year, semester, professor, and uploaded record details such as
                         your previous grade, units, and schedule. The professor manages these values; contact your provider
                         if something needs correction.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Forecasts Use Your Most Recent Record</h3>
+                      <p>
+                        Forecasting uses the record for your most recent academic period. If you designate a newer
+                        semester while an older record is already available, the older record will not be used as a
+                        fallback. You must wait for your provider to upload the record for the newer semester before
+                        forecasting is available.
                       </p>
                     </li>
                     <li>
