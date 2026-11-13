@@ -1,4 +1,6 @@
 const axios = require('axios');
+const { publicUrl } = require('./publicUrl');
+const { trajectoryData, renderTrajectory, trajectoryUrl } = require('./emailTrajectory');
 
 const ALERT_LEVELS = new Set(['medium', 'high']);
 
@@ -14,19 +16,13 @@ const formatNumber = (value, format) => (
     : 'Not available'
 );
 
-const createRiskAlertEmail = ({ student, forecast, professor }) => {
+const createRiskAlertEmail = ({ student, forecast, professor, trajectory, imageUrl }) => {
   const riskLevel = displayRiskLevel(forecast.riskLevel);
   const probability = formatNumber(forecast.dropoutProbability, (value) => `${Math.round(value * 100)}%`);
   const completionRate = formatNumber(forecast.completionRate, (value) => `${Math.round(value * 100)}%`);
   const predictedGrade = formatNumber(forecast.predictedNextSemesterGrade, (value) => value.toFixed(2));
   const gradeMaximum = formatNumber(forecast.gradeMaximum, (value) => String(value));
-  const appUrl = (process.env.PUBLIC_APP_URL || process.env.CLIENT_ORIGIN?.split(',')[0] || 'http://localhost:3000').trim();
-  const forecastUrl = new URL(appUrl);
-  if (!['http:', 'https:'].includes(forecastUrl.protocol)) throw new Error('Invalid public application URL.');
-  forecastUrl.pathname = `${forecastUrl.pathname.replace(/\/$/, '')}${professor ? '/dashboard' : '/dashboard/insights'}`;
-  forecastUrl.search = '';
-  forecastUrl.hash = '';
-  const reviewUrl = escapeHtml(forecastUrl.toString());
+  const reviewUrl = escapeHtml(publicUrl(professor ? '/dashboard' : '/dashboard/insights'));
   const gradeScaleNote = Number(forecast.gradeMaximum) === 5
     ? 'On the 1.0-5.0 GWA scale, lower numbers are better; 3.0 is passing and 5.0 is failing.'
     : 'On this grade scale, higher numbers indicate better results.';
@@ -43,6 +39,9 @@ const createRiskAlertEmail = ({ student, forecast, professor }) => {
         <tr style="background:#f1f5f9"><th scope="row">Predicted next-semester grade</th><td>${predictedGrade} / ${gradeMaximum}</td></tr>
         <tr><th scope="row">Previous-semester completion rate</th><td>${completionRate}</td></tr>
       </table>
+      ${trajectory ? `<h2 style="font-size:20px;color:#0d47a1">Academic trajectory</h2>
+      <img src="${escapeHtml(imageUrl)}" width="560" alt="Academic trajectory: Current Term ${trajectory.currentGrade.toFixed(2)} to Next Term (ML) ${trajectory.predictedGrade.toFixed(2)}; passing cutoff ${trajectory.cutoff}." style="display:block;width:100%;max-width:560px;height:auto;border:1px solid #e2e8f0;border-radius:8px" />
+      <p style="font-size:13px;color:#475569">Current Term: <strong>${trajectory.currentGrade.toFixed(2)}</strong> &rarr; Next Term (ML): <strong>${trajectory.predictedGrade.toFixed(2)}</strong>. Passing cutoff: ${trajectory.cutoff}. This uses the same source grades and scale as the professor overview. If images are blocked, open the attached academic-trajectory.png.</p>` : ''}
       <p style="font-size:13px;color:#475569">${gradeScaleNote} Completion rate is the share of enrolled units you passed in the previous semester, not a predicted graduation rate.</p>
       <p style="font-size:13px;color:#475569">This summary shows the forecast that triggered this email. The app displays your latest saved forecast.</p>
       <p>${professor ? 'Please review the shared academic record and trajectory in your professor dashboard, and consider a supportive check-in with the student. Discuss their circumstances before drawing conclusions or recommending support.' : 'Small, timely steps can make a difference. Please review your forecast and consider speaking with a professor, adviser, or student-support service about attendance, coursework, finances, or any barriers you are facing.'}</p>
@@ -55,11 +54,14 @@ const createRiskAlertEmail = ({ student, forecast, professor }) => {
 
 const isRiskAlertLevel = (riskLevel) => ALERT_LEVELS.has(String(riskLevel || '').toLowerCase());
 
-const sendRiskAlertEmail = async ({ student, forecast, professor }) => {
+const sendRiskAlertEmail = async ({ student, forecast, professor, record }) => {
   if (!process.env.BREVO_API_KEY || !process.env.BREVO_SENDER_EMAIL) {
     throw new Error('Risk alert email is not configured.');
   }
 
+  const trajectory = trajectoryData(record, forecast);
+  const imageUrl = trajectory ? trajectoryUrl(trajectory) : null;
+  const png = trajectory ? await renderTrajectory(trajectory) : null;
   await axios.post(
     'https://api.brevo.com/v3/smtp/email',
     {
@@ -71,7 +73,8 @@ const sendRiskAlertEmail = async ({ student, forecast, professor }) => {
       subject: professor
         ? `Student support check-in: ${student.fullName} (${displayRiskLevel(forecast.riskLevel)} support risk)`
         : `Academic support check-in: ${displayRiskLevel(forecast.riskLevel)} support risk`,
-      htmlContent: createRiskAlertEmail({ student, forecast, professor }),
+      htmlContent: createRiskAlertEmail({ student, forecast, professor, trajectory, imageUrl }),
+      ...(png ? { attachment: [{ name: 'academic-trajectory.png', content: png.toString('base64') }] } : {}),
     },
     {
       headers: {

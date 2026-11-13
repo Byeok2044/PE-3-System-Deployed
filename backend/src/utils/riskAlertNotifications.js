@@ -39,7 +39,7 @@ const sendRiskAlerts = async (student, forecast, context) => {
         }
       }
 
-      await sendRiskAlertEmail({ student, forecast, ...(role === 'professor' ? { professor: recipient } : {}) });
+      await sendRiskAlertEmail({ student, forecast, record: context?.record, ...(role === 'professor' ? { professor: recipient } : {}) });
       await StudentActivity.create({
         student: student._id,
         type: 'risk_alert_sent',

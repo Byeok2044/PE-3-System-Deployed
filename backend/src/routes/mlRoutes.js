@@ -36,7 +36,7 @@ async function predictMyRecord(req, res, next) {
     const current = await workspaceService.loadWorkspace(currentUser, { includeForecast: false });
     if (current.inputVersion !== workspace.inputVersion) throw fail('Your inputs changed while forecasting. Run a new forecast.', 409);
     const activity = await professorHistory.saveForecastActivity(currentUser, workspace, data);
-    try { await sendRiskAlerts(currentUser, data, { inputVersion: workspace.inputVersion, forecastId: activity._id }); }
+    try { await sendRiskAlerts(currentUser, data, { inputVersion: workspace.inputVersion, forecastId: activity._id, record: workspace.record }); }
     catch (error) { console.error('Unable to send risk alert emails:', error.message); }
     res.json({ ...data, activity: { id: activity._id, forecast: data, record: workspace.record, inputVersion: workspace.inputVersion, createdAt: activity.createdAt } });
   } catch (error) {

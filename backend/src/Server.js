@@ -69,6 +69,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/email-assets', require('./routes/emailAssetRoutes'));
 app.use('/api/institutions', institutionRoutes);
 app.use('/api/students', studentRecordRoutes);   
 app.use('/api/connections', connectionRoutes);

@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const Connection = require('../models/StudentProfessorConnection');
 const Conversation = require('../models/Conversation');
 const { resolveInstitution } = require('./institutionController');
+const { publicUrl } = require('../utils/publicUrl');
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_TIME_MS = 15 * 60 * 1000; // 15 minutes
@@ -17,8 +18,7 @@ const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const getClientUrl = () => {
   // CLIENT_ORIGIN may contain several comma-separated origins for CORS. A
   // verification email, however, must contain one public URL only.
-  const configuredUrl = process.env.PUBLIC_APP_URL || process.env.CLIENT_ORIGIN || 'http://localhost:3000';
-  return configuredUrl.split(',')[0].trim().replace(/\/$/, '');
+  return publicUrl('').replace(/\/$/, '');
 };
 
 const getBrevoErrorMessage = (error) => {
@@ -88,6 +88,7 @@ const sendVerificationEmail = async (user, token) => {
         accept: 'application/json',
         'content-type': 'application/json',
       },
+      timeout: 15000,
     }
   );
 };
@@ -265,6 +266,9 @@ exports.login = async (req, res, next) => {
 // @route   POST /api/auth/verify-email/:token
 exports.verifyEmail = async (req, res, next) => {
   try {
+    if (!/^[a-f0-9]{64}$/i.test(req.params.token || '')) {
+      return res.status(400).json({ message: 'This verification link is invalid or has expired.' });
+    }
     const emailVerificationToken = crypto
       .createHash('sha256')
       .update(req.params.token)
