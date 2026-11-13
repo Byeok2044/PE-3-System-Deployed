@@ -54,6 +54,8 @@ const createVerificationEmail = (verifyUrl) => `
         Verify email address
       </a>
     </p>
+    <p>If the button does not open, copy and paste this address into your browser:</p>
+    <p style="overflow-wrap: anywhere; word-break: break-all;"><span>${verifyUrl}</span></p>
     <p>This link expires in 24 hours. If you did not create an account, you can safely ignore this email.</p>
   </div>
 `;
@@ -81,6 +83,7 @@ const sendVerificationEmail = async (user, token) => {
       to: [{ email: user.email, name: user.fullName }],
       subject: 'Verify your Retainify email address',
       htmlContent: createVerificationEmail(verifyUrl),
+      textContent: `Verify your Retainify email address by copying this address into your browser:\n${verifyUrl}\n\nThis link expires in 24 hours. If you did not create an account, you can ignore this email.`,
     },
     {
       headers: {
@@ -404,6 +407,8 @@ const createResetEmail = (resetUrl) => `
         Reset password
       </a>
     </p>
+    <p>If the button does not open, copy and paste this address into your browser:</p>
+    <p style="overflow-wrap: anywhere; word-break: break-all;"><span>${resetUrl}</span></p>
     <p>This link expires in one hour. If you did not request a password reset, you can safely ignore this email.</p>
   </div>
 `;
@@ -447,6 +452,7 @@ exports.forgotPassword = async (req, res, next) => {
             to: [{ email: user.email, name: user.fullName }],
             subject: 'Reset your Retainify password',
             htmlContent: createResetEmail(resetUrl),
+              textContent: `Reset your Retainify password by copying this address into your browser:\n${resetUrl}\n\nThis link expires in one hour. If you did not request a password reset, you can ignore this email.`,
           },
           {
             headers: {

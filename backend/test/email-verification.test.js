@@ -131,10 +131,16 @@ test('new verification and reset emails use the deployed frontend in production'
     const verify = messages.at(-1).payload.htmlContent.match(/href="([^"]+)"/)[1];
     assert.equal(new URL(verify).origin, frontend);
     assert.match(new URL(verify).pathname, /^\/verify-email\/[a-f0-9]{64}$/);
+    assert.ok(messages.at(-1).payload.htmlContent.includes(`<span>${verify}</span>`), 'Verification includes the direct URL as copyable text, outside a tracked anchor');
+    assert.ok(messages.at(-1).payload.textContent.includes(verify));
+    assert.match(messages.at(-1).payload.textContent, /24 hours/);
     await invoke('forgotPassword', { body: { email: registration.email } });
     const reset = messages.at(-1).payload.htmlContent.match(/href="([^"]+)"/)[1];
     assert.equal(new URL(reset).origin, frontend);
     assert.match(new URL(reset).pathname, /^\/reset-password\/[a-f0-9]{64}$/);
+    assert.ok(messages.at(-1).payload.htmlContent.includes(`<span>${reset}</span>`), 'Password reset includes the direct URL as copyable text, outside a tracked anchor');
+    assert.ok(messages.at(-1).payload.textContent.includes(reset));
+    assert.match(messages.at(-1).payload.textContent, /one hour/);
     assert.doesNotMatch(`${verify}${reset}`, /localhost|other.example/);
   }
 });
