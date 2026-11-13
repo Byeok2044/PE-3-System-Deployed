@@ -1418,6 +1418,7 @@
 }
 
 .forecast-results { margin-top: 1.2rem; }
+.insights-container .forecast-outdated-notice { margin-bottom: 0.75rem; }
 .forecast-spin { animation: forecast-spin 0.9s linear infinite; }
 @keyframes forecast-spin { to { transform: rotate(360deg); } }
 

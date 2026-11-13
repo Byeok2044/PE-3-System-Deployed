@@ -1203,6 +1203,15 @@ export default function Dashboard() {
                       </p>
                     </li>
                     <li>
+                      <h3>Forecasts Use Your Most Recent Record</h3>
+                      <p>
+                        Forecasting uses the record for your most recent academic period. If you designate a newer
+                        semester while an older record is already available, the older record will not be used as a
+                        fallback. You must wait for your provider to upload the record for the newer semester before
+                        forecasting is available.
+                      </p>
+                    </li>
+                    <li>
                       <h3>Designate an Academic Provider</h3>
                       <p>
                         Enter the source academic year as eight digits (for example, 2025-2026; pasting the year is also
