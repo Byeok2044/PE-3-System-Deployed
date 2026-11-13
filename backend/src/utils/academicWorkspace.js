@@ -41,6 +41,10 @@ async function loadWorkspace(student, { includeForecast = true, academicRecordId
   const forecastCurrent = Boolean(latest?.inputVersion && inputVersion && latest.inputVersion === inputVersion);
   return {
     profile: profileData, record, academic: provenance, academicPeriods: academics.map(item => ({ id: String(item._id), academicYear: item.academicYear, semester: item.semester, status: item.status })),
+    pendingRequests: academics.filter(item => item.status === 'awaiting_upload').map(item => ({
+      id: String(item._id), academicYear: item.academicYear, semester: item.semester,
+      provider: item.provider, academicVersion: item.academicVersion, createdAt: item.createdAt,
+    })),
     readiness, inputVersion, canForecast: readiness === 'ready',
     providers: accepted.map(item => ({ id: String(item.professor._id), fullName: item.professor.fullName })),
     legacyRecord: profile?.previousSemesterGrade !== undefined ? { ...pick(profile, ACADEMIC_FIELDS), source: 'legacy_self_reported' } : null,

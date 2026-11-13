@@ -36,10 +36,15 @@ export default function StudentDataForm({ onSaveRecord }) {
   const [providerError, setProviderError] = useState("");
   const [providerMessage, setProviderMessage] = useState("");
   const [isProfPickerOpen, setIsProfPickerOpen] = useState(false);
+  const [replacement, setReplacement] = useState(null);
+  const [requestToCancel, setRequestToCancel] = useState(null);
 
   const dirty = useRef(false);
+  const mutationRevision = useRef(0);
+  const saving = useRef(false);
   const digitInputRefs = useRef([]);
   const pickerRef = useRef(null);
+  const providerFormRef = useRef(null);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -92,16 +97,21 @@ export default function StudentDataForm({ onSaveRecord }) {
   };
 
   useAdaptivePolling(async () => {
+    if (saving.current) return;
+    const revision = mutationRevision.current;
     try {
       const response = await apiFetch("/api/students/me");
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Could not load your workspace.");
-      ingest(data);
-    } catch (err) { setGeneralError(err.message); }
+      if (revision === mutationRevision.current && !saving.current) { ingest(data); setGeneralError(""); }
+    } catch (err) { if (revision === mutationRevision.current && !saving.current) setGeneralError(err.message); }
   }, { intervalMs: 15000 });
 
   const saveProfile = async (event) => {
-    event.preventDefault(); setBusy(true); setProfileError(""); setProfileMessage("");
+    event.preventDefault();
+    if (saving.current) return;
+    setBusy(true); saving.current = true; mutationRevision.current++;
+    setProfileError(""); setProfileMessage("");
     try {
       const response = await apiFetch("/api/students/me", {
         method: "PUT",
@@ -111,11 +121,44 @@ export default function StudentDataForm({ onSaveRecord }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Could not save your information.");
       dirty.current = false; ingest(data); setProfileMessage(data.message);
-    } catch (err) { setProfileError(err.message); } finally { setBusy(false); }
+    } catch (err) { setProfileError(err.message); } finally { setBusy(false); saving.current = false; }
+  };
+
+  const resetReplacement = () => {
+    setReplacement(null);
+    setPeriod({ academicYear: "", semester: "1", professorId: "" });
+    setYearDigits(["", "", "", "", "", "", "", ""]);
+    setIsProfPickerOpen(false);
+  };
+
+  const startReplacement = (request) => {
+    setReplacement(request); setRequestToCancel(null); setProviderError(""); setProviderMessage("");
+    setPeriod({ academicYear: request.academicYear, semester: String(request.semester), professorId: request.provider?._id || "" });
+    setYearDigits(request.academicYear.replace(/\D/g, "").split(""));
+    setIsProfPickerOpen(false);
+    providerFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    digitInputRefs.current[0]?.focus({ preventScroll: true });
+  };
+
+  const cancelRequest = async () => {
+    if (!requestToCancel || saving.current) return;
+    setBusy(true); saving.current = true; mutationRevision.current++;
+    setProviderError(""); setProviderMessage("");
+    try {
+      const response = await apiFetch(`/api/students/me/academic-provider/${requestToCancel.id}`, {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedVersion: requestToCancel.academicVersion }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Could not cancel your request.");
+      if (replacement?.id === requestToCancel.id) resetReplacement();
+      ingest(data); setProviderMessage(data.message); setRequestToCancel(null);
+    } catch (err) { setProviderError(err.message); } finally { setBusy(false); saving.current = false; }
   };
 
   const designate = async (event) => {
     event.preventDefault();
+    if (saving.current) return;
     setProviderError("");
     setProviderMessage("");
     if (!period.academicYear || !/^[0-9]{4}-[0-9]{4}$/.test(period.academicYear)) {
@@ -126,23 +169,25 @@ export default function StudentDataForm({ onSaveRecord }) {
       setProviderError("Please select a connected professor.");
       return;
     }
-    setBusy(true);
+    setBusy(true); saving.current = true; mutationRevision.current++;
     try {
       const response = await apiFetch("/api/students/me/academic-provider", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...period, semester: Number(period.semester) }),
+        body: JSON.stringify({ ...period, semester: Number(period.semester),
+          ...(replacement ? { replaceRequestId: replacement.id, expectedVersion: replacement.academicVersion } : {}) }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Could not designate your professor.");
-      ingest(data); setProviderMessage(data.message);
-    } catch (err) { setProviderError(err.message); } finally { setBusy(false); }
+      ingest(data); setProviderMessage(data.message); resetReplacement();
+    } catch (err) { setProviderError(err.message); } finally { setBusy(false); saving.current = false; }
   };
 
   if (!workspace) return <p role="status">{generalError || "Loading your workspace..."}</p>;
 
   const academic = workspace.academic;
   const record = workspace.record;
+  const pendingRequests = workspace.pendingRequests || [];
   const selectedProfessor = workspace.providers.find((p) => p.id === period.professorId);
 
   const getInitials = (name) =>
@@ -207,6 +252,36 @@ export default function StudentDataForm({ onSaveRecord }) {
         </div>
       </section>
 
+      {pendingRequests.length > 0 && (
+        <section className="academic-panel" aria-labelledby="pending-record-requests-title">
+          <div className="academic-panel-heading">
+            <div><span className="dashboard-eyebrow">Awaiting professor upload</span><h2 id="pending-record-requests-title">Pending Record Requests</h2></div>
+            <span className="academic-source-badge badge--pending">{pendingRequests.length} pending</span>
+          </div>
+          <p className="academic-panel-subtitle">Cancel a request or replace its academic year, semester, or professor before the record is uploaded.</p>
+          <ul className="pending-record-requests">
+            {pendingRequests.map((request) => (
+              <li key={request.id} className="pending-record-request">
+                <div><strong>{request.academicYear} · Semester {request.semester}</strong><p>Provider: {request.provider?.fullName || "Unavailable"}</p></div>
+                <div className="pending-request-actions">
+                  <button type="button" className="dashboard-action" disabled={busy || workspace.providers.length === 0} onClick={() => startReplacement(request)} aria-label={`Replace request for ${request.academicYear} semester ${request.semester}`}>Replace</button>
+                  <button type="button" className="pending-request-secondary" disabled={busy} onClick={() => { setRequestToCancel(request); setProviderError(""); setProviderMessage(""); }} aria-label={`Cancel request for ${request.academicYear} semester ${request.semester}`}>Cancel Request</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {requestToCancel && (
+            <div className="pending-request-confirmation" role="group" aria-label="Confirm request cancellation">
+              <p>Cancel the request for <strong>{requestToCancel.academicYear} · Semester {requestToCancel.semester}</strong>? Your professor will no longer be able to upload it. You can request it again later.</p>
+              <div className="pending-request-actions">
+                <button type="button" className="dashboard-action" disabled={busy} onClick={cancelRequest}>{busy ? "Cancelling..." : "Confirm Cancel"}</button>
+                <button type="button" className="pending-request-secondary" disabled={busy} onClick={() => setRequestToCancel(null)}>Keep Request</button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
       {providerError && (
         <p className="academic-notice academic-notice--error" role="alert">{providerError}</p>
       )}
@@ -215,19 +290,22 @@ export default function StudentDataForm({ onSaveRecord }) {
       )}
 
       {/* 2. Designate Source Panel */}
-      <section className="academic-panel">
+      <section className="academic-panel" ref={providerFormRef}>
         <div className="academic-panel-heading">
           <div>
             <span className="dashboard-eyebrow">Configuration</span>
-            <h2>Designate Academic Provider</h2>
+            <h2>{replacement ? "Replace Pending Request" : "Designate Academic Provider"}</h2>
           </div>
         </div>
         <p className="academic-panel-subtitle">
-          Select the source semester and designate your connected professor to handle record ingestion.
+          {replacement
+            ? `Replacing ${replacement.academicYear}, Semester ${replacement.semester}. Update the details below and save. Your existing request stays active until the replacement succeeds.`
+            : "Select the source semester and designate your connected professor to handle record ingestion."}
         </p>
 
         {workspace.providers.length > 0 ? (
           <form onSubmit={designate} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <fieldset className="provider-request-fields" disabled={busy}>
             <div className="designate-source-row">
               {/* Segmented PIN Year */}
               <div className="form-group">
@@ -241,6 +319,7 @@ export default function StudentDataForm({ onSaveRecord }) {
                         type="text"
                         inputMode="numeric"
                         maxLength={1}
+                        aria-label={`Source academic year digit ${i + 1}`}
                         className="academic-year-digit-input"
                         value={yearDigits[i]}
                         onChange={(e) => handleDigitChange(i, e.target.value)}
@@ -257,6 +336,7 @@ export default function StudentDataForm({ onSaveRecord }) {
                         type="text"
                         inputMode="numeric"
                         maxLength={1}
+                        aria-label={`Source academic year digit ${i + 1}`}
                         className="academic-year-digit-input"
                         value={yearDigits[i]}
                         onChange={(e) => handleDigitChange(i, e.target.value)}
@@ -292,7 +372,7 @@ export default function StudentDataForm({ onSaveRecord }) {
               <div className="form-group">
                 <label>Connected Professor</label>
                 <div className="professor-picker-container" ref={pickerRef}>
-                  <div
+                  <button type="button" aria-label="Connected professor" aria-expanded={isProfPickerOpen}
                     className={`professor-picker-trigger ${isProfPickerOpen ? "is-open" : ""}`}
                     onClick={() => setIsProfPickerOpen(!isProfPickerOpen)}
                   >
@@ -320,14 +400,14 @@ export default function StudentDataForm({ onSaveRecord }) {
                         clipRule="evenodd"
                       />
                     </svg>
-                  </div>
+                  </button>
 
                   {isProfPickerOpen && (
                     <div className="professor-picker-dropdown">
                       {workspace.providers.map((prof) => {
                         const isSelected = period.professorId === prof.id;
                         return (
-                          <div
+                          <button type="button"
                             key={prof.id}
                             className={`professor-picker-option ${isSelected ? "selected" : ""}`}
                             onClick={() => {
@@ -340,7 +420,7 @@ export default function StudentDataForm({ onSaveRecord }) {
                               <p className="professor-name">{prof.fullName}</p>
                               <span className="professor-role">Connected Academic Provider</span>
                             </div>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
@@ -350,11 +430,15 @@ export default function StudentDataForm({ onSaveRecord }) {
             </div>
 
             <div className="academic-submit-row">
-              <p>Verify professor availability before submitting request.</p>
-              <button className="dashboard-action" disabled={busy}>
-                {busy ? "Designating..." : "Designate Provider"}
-              </button>
+              <p>{replacement ? "The previous request will be replaced when you save." : "Verify professor availability before submitting request."}</p>
+              <div className="pending-request-actions">
+                {replacement && <button type="button" className="pending-request-secondary" disabled={busy} onClick={resetReplacement}>Stop Editing</button>}
+                <button className="dashboard-action" disabled={busy}>
+                  {busy ? "Saving..." : replacement ? "Save Replacement" : "Designate Provider"}
+                </button>
+              </div>
             </div>
+            </fieldset>
           </form>
         ) : (
           <p className="academic-panel-subtitle">Open Connections to connect with a professor first.</p>

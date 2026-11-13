@@ -285,3 +285,138 @@ test('partial import excludes all occurrences of duplicate students and does not
   const res = await invoke(controller.preview, { ...previewRequest(csv() + '\n' + csv().split('\n')[1]), query: { allowPartial: 'true' } });
   assert.ifError(res.error); assert.equal(res.body.canConfirm, false); assert.equal(res.body.skippedCount, 2);
 });
+
+function pendingRequestFixtures({ status = 'awaiting_upload', target = null } = {}) {
+  const session = { withTransaction: async callback => callback(), endSession: async () => {} };
+  stub(mongoose, 'startSession', async () => session);
+  const record = { _id: id(3), student: student._id, institutionKey: 'school a', provider: professor._id,
+    academicYear: '2025-2026', semester: 2, academicVersion: 0, status,
+    toObject() { const { toObject, save, ...values } = this; return values; },
+    async save(options) { assert.equal(options.session, session); } };
+  let deleted = false; const audits = [];
+  fixtures({ academics: [] });
+  stub(Academic, 'find', () => query(deleted ? [] : [{ ...record.toObject(), provider: professor }]));
+  stub(Academic, 'findOne', filter => {
+    if (filter._id) {
+      assert.equal(String(filter.student), student._id); assert.equal(filter.institutionKey, 'school a');
+      return query(!deleted && (filter.academicVersion === undefined || record.academicVersion === filter.academicVersion) ? record : null);
+    }
+    return query(record.academicYear === filter.academicYear && record.semester === filter.semester ? record : target);
+  });
+  stub(Academic, 'findOneAndDelete', async (filter, options) => {
+    assert.equal(options.session, session); assert.equal(filter.status, 'awaiting_upload');
+    assert.equal(filter.academicVersion, record.academicVersion); assert.equal(String(filter.student), student._id);
+    assert.equal(filter.institutionKey, 'school a'); deleted = true; return record;
+  });
+  stub(User, 'findOneAndUpdate', async filter => filter.role === 'student' ? student : professor);
+  stub(Connection, 'findOneAndUpdate', async () => ({ _id: id(4) }));
+  stub(Revision, 'create', async (entries, options) => { assert.equal(options.session, session); audits.push(...entries); });
+  return { record, audits, isDeleted: () => deleted };
+}
+const cancelPending = (overrides = {}) => ({ user: student, params: { id: id(3) }, body: { expectedVersion: 0 }, ...overrides });
+const replacePending = (body = {}) => ({ user: student, body: { replaceRequestId: id(3), expectedVersion: 0,
+  academicYear: '2024-2025', semester: 1, professorId: professor._id, ...body } });
+
+test('workspace lists all pending requests, including older periods, with provider and request version', async () => {
+  fixtures({ academics: [academic, { ...academic, _id: id(8), academicYear: '2024-2025', status: 'awaiting_upload', academicVersion: 0 }] });
+  const result = await workspaceService.loadWorkspace(student);
+  assert.equal(result.academic.academicRecordId, academic._id);
+  assert.equal(result.pendingRequests.length, 1); assert.equal(result.pendingRequests[0].id, id(8));
+  assert.equal(result.pendingRequests[0].provider.fullName, professor.fullName); assert.equal(result.pendingRequests[0].academicVersion, 0);
+});
+
+test('student cancels an awaiting request in a transaction even after the professor disconnects', async () => {
+  const fixture = pendingRequestFixtures();
+  stub(Connection, 'findOneAndUpdate', () => { throw new Error('Cancellation must not require a connection'); });
+  const result = await invoke(controller.cancelPendingRequest, cancelPending()); assert.ifError(result.error);
+  assert.equal(fixture.isDeleted(), true); assert.deepEqual(result.body.pendingRequests, []);
+  assert.equal(fixture.audits[0].action, 'request_cancelled'); assert.equal(fixture.audits[0].before.academicYear, '2025-2026');
+});
+
+test('pending request cancellation rejects professors, foreign requests, uploaded records, and stale versions', async () => {
+  let fixture = pendingRequestFixtures();
+  let result = await invoke(controller.cancelPendingRequest, cancelPending({ user: professor }));
+  assert.equal(result.error.status, 403); assert.equal(fixture.isDeleted(), false);
+  stub(Academic, 'findOne', filter => {
+    assert.equal(filter.student, student._id); assert.equal(filter.institutionKey, 'school a'); return query(null);
+  });
+  result = await invoke(controller.cancelPendingRequest, cancelPending()); assert.equal(result.error.status, 404);
+  for (const [status, expectedVersion] of [['published', 0], ['awaiting_upload', 1]]) {
+    fixture = pendingRequestFixtures({ status });
+    result = await invoke(controller.cancelPendingRequest, cancelPending({ body: { expectedVersion } }));
+    assert.equal(result.error.status, 409); assert.equal(fixture.isDeleted(), false); assert.equal(fixture.audits.length, 0);
+  }
+});
+
+test('cancellation validates identifiers and request versions before modifying data', async () => {
+  const fixture = pendingRequestFixtures();
+  for (const request of [cancelPending({ params: { id: 'invalid' } }), cancelPending({ body: {} }), cancelPending({ body: { expectedVersion: '0' } })]) {
+    const result = await invoke(controller.cancelPendingRequest, request); assert.equal(result.error.status, 400);
+  }
+  assert.equal(fixture.isDeleted(), false); assert.equal(fixture.audits.length, 0);
+});
+
+test('replacing a pending request changes its period and professor, increments the version, and records both snapshots', async () => {
+  const fixture = pendingRequestFixtures();
+  const result = await invoke(controller.designateProvider, replacePending({ professorId: id(9) })); assert.ifError(result.error);
+  assert.equal(fixture.record.academicYear, '2024-2025'); assert.equal(fixture.record.semester, 1);
+  assert.equal(fixture.record.provider, id(9)); assert.equal(fixture.record.academicVersion, 1);
+  assert.equal(fixture.record.status, 'awaiting_upload'); assert.equal(fixture.isDeleted(), false);
+  assert.equal(result.body.pendingRequests[0].academicYear, '2024-2025');
+  assert.equal(fixture.audits[0].action, 'request_replaced');
+  assert.equal(fixture.audits[0].before.academicYear, '2025-2026'); assert.equal(fixture.audits[0].after.academicYear, '2024-2025');
+});
+
+test('replacement can change just the professor for the same year and semester', async () => {
+  const fixture = pendingRequestFixtures();
+  const result = await invoke(controller.designateProvider, replacePending({ academicYear: '2025-2026', semester: 2, professorId: id(9) }));
+  assert.ifError(result.error); assert.equal(fixture.record.provider, id(9)); assert.equal(fixture.record.academicVersion, 1);
+});
+
+test('replacement cannot overwrite another pending or published period and keeps the original request', async () => {
+  for (const status of ['awaiting_upload', 'published']) {
+    const fixture = pendingRequestFixtures({ target: { _id: id(8), status } });
+    const result = await invoke(controller.designateProvider, replacePending());
+    assert.equal(result.error.status, 409); assert.equal(fixture.record.academicYear, '2025-2026');
+    assert.equal(fixture.record.academicVersion, 0); assert.equal(fixture.audits.length, 0);
+  }
+});
+
+test('replacement rejects settled or stale requests, foreign requests, and disconnected providers', async () => {
+  for (const [status, expectedVersion] of [['published', 0], ['awaiting_upload', 1]]) {
+    const fixture = pendingRequestFixtures({ status });
+    const result = await invoke(controller.designateProvider, replacePending({ expectedVersion }));
+    assert.equal(result.error.status, 409); assert.equal(fixture.record.academicVersion, 0); assert.equal(fixture.audits.length, 0);
+  }
+  let fixture = pendingRequestFixtures();
+  stub(Academic, 'findOne', () => query(null));
+  let result = await invoke(controller.designateProvider, replacePending()); assert.equal(result.error.status, 404);
+  assert.equal(fixture.audits.length, 0);
+  fixture = pendingRequestFixtures(); stub(Connection, 'findOneAndUpdate', async () => null);
+  result = await invoke(controller.designateProvider, replacePending()); assert.equal(result.error.status, 403);
+  assert.equal(fixture.record.academicYear, '2025-2026'); assert.equal(fixture.audits.length, 0);
+});
+
+test('cancellation rejects an institution change or a concurrent upload before deleting', async () => {
+  let fixture = pendingRequestFixtures();
+  stub(User, 'findOneAndUpdate', async () => ({ ...student, institution: 'Other school' }));
+  let result = await invoke(controller.cancelPendingRequest, cancelPending()); assert.equal(result.error.status, 409);
+  assert.equal(fixture.isDeleted(), false);
+  fixture = pendingRequestFixtures(); stub(Academic, 'findOneAndDelete', async () => null);
+  result = await invoke(controller.cancelPendingRequest, cancelPending()); assert.equal(result.error.status, 409);
+  assert.equal(fixture.audits.length, 0);
+});
+
+test('a staged CSV cannot commit after the student replaces or cancels its pending request', async () => {
+  for (const action of ['replace', 'cancel']) {
+    const fixture = pendingRequestFixtures();
+    const result = await invoke(action === 'replace' ? controller.designateProvider : controller.cancelPendingRequest,
+      action === 'replace' ? replacePending() : cancelPending()); assert.ifError(result.error);
+    const batch = { _id: id(5), institutionKey: 'school a', status: 'preview', expiresAt: new Date(Date.now() + 60000),
+      rows: [{ student: student._id, recordId: id(3), expectedVersion: 0, rowNumber: 2, action: 'new' }] };
+    stub(Batch, 'findOne', () => query(batch));
+    const imported = await invoke(controller.confirm, { user: professor, params: { id: id(5) } });
+    assert.equal(imported.error.status, 409); assert.equal(batch.status, 'preview');
+    assert.equal(fixture.record.status, 'awaiting_upload'); assert.equal(fixture.audits.length, 1);
+  }
+});

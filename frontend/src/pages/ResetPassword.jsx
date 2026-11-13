@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import "../styles/Login.css";
 import BrandLogo from "../components/BrandLogo";
+import { requestAuthEmailAction } from "../utils/authEmailActions";
 
 const ResetPassword = () => {
   const { token } = useParams();
@@ -27,15 +28,7 @@ const ResetPassword = () => {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/auth/reset-password/${token}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.message || "Unable to reset your password.");
-      }
+      await requestAuthEmailAction(`/api/auth/reset-password/${encodeURIComponent(token)}`, { password });
       setIsSubmitted(true);
     } catch (err) {
       setError(err.message || "Unable to reset your password.");

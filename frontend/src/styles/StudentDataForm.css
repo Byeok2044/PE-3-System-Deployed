@@ -537,6 +537,63 @@
   transform: translateY(-1px) !important;
 }
 
+.student-workspace .provider-request-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.student-workspace .pending-record-requests {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.student-workspace .pending-record-request {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-sm);
+  background: var(--slate-50);
+}
+
+.student-workspace .pending-record-request strong { color: var(--slate-900); font-size: 0.9rem; }
+.student-workspace .pending-record-request p,
+.student-workspace .pending-request-confirmation p { margin: 0.3rem 0 0; color: var(--slate-600); font-size: 0.85rem; line-height: 1.5; }
+.student-workspace .pending-request-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.student-workspace .pending-request-secondary {
+  min-height: 40px;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--slate-300);
+  border-radius: var(--radius-sm);
+  color: var(--slate-700);
+  background: #fff;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.student-workspace .pending-request-secondary:hover:not(:disabled) { background: var(--slate-100); }
+.student-workspace .pending-request-confirmation { display: grid; gap: 0.85rem; padding: 1rem; border: 1px solid var(--primary-200); border-radius: var(--radius-sm); background: var(--primary-50); }
+.student-workspace button:disabled,
+.student-workspace fieldset:disabled button { opacity: 0.6; cursor: not-allowed !important; }
+.student-workspace .professor-picker-trigger { text-align: left; font: inherit; }
+
+@media (max-width: 680px) {
+  .student-workspace .pending-request-actions { width: 100%; }
+  .student-workspace .pending-request-actions > button { flex: 1 1 auto; width: auto !important; }
+}
+
 /* Notice Banners */
 .student-workspace .academic-notice {
   padding: 0.85rem 1rem !important;

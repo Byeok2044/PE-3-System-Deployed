@@ -412,7 +412,7 @@ const createResetEmail = (resetUrl) => `
 // @route   POST /api/auth/forgot-password
 exports.forgotPassword = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const email = String(req.body.email || '').trim().toLowerCase();
     if (!email) {
       return res.status(400).json({ message: 'Email is required.' });
     }
@@ -435,9 +435,8 @@ exports.forgotPassword = async (req, res, next) => {
       user.passwordResetExpires = new Date(Date.now() + RESET_TOKEN_LIFETIME_MS);
       await user.save({ validateBeforeSave: false });
 
-      const clientOrigin = (process.env.CLIENT_ORIGIN || 'http://localhost:3000').replace(/\/$/, '');
-      const resetUrl = `${clientOrigin}/reset-password/${resetToken}`;
       try {
+        const resetUrl = publicUrl(`/reset-password/${resetToken}`);
         await axios.post(
           'https://api.brevo.com/v3/smtp/email',
           {
@@ -455,6 +454,7 @@ exports.forgotPassword = async (req, res, next) => {
               accept: 'application/json',
               'content-type': 'application/json',
             },
+            timeout: 15000,
           }
         );
       } catch (error) {
@@ -481,6 +481,9 @@ exports.forgotPassword = async (req, res, next) => {
 // @route   POST /api/auth/reset-password/:token
 exports.resetPassword = async (req, res, next) => {
   try {
+    if (!/^[a-f0-9]{64}$/i.test(req.params.token || '')) {
+      return res.status(400).json({ message: 'This password reset link is invalid or has expired.' });
+    }
     const { password } = req.body;
     if (!password || password.length < 8) {
       return res.status(400).json({ message: 'Password must be at least 8 characters.' });

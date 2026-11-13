@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "../styles/Login.css";
 import BrandLogo from "../components/BrandLogo";
+import { requestAuthEmailAction } from "../utils/authEmailActions";
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
@@ -29,18 +30,7 @@ const ForgotPassword = () => {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(
-          data.message || "Something went wrong. Please try again.",
-        );
-      }
+      await requestAuthEmailAction("/api/auth/forgot-password", { email: email.trim() });
 
       setIsSubmitted(true);
     } catch (err) {

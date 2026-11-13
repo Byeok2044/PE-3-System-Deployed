@@ -117,6 +117,12 @@ test('student email contains a private snapshot image and a valid PNG attachment
   assert.match(payload.htmlContent, /Current Term: <strong>2.25/);
   assert.match(payload.htmlContent, /Next Term \(ML\): <strong>3.40/);
   const token = payload.htmlContent.match(/trajectory\/([A-Za-z0-9_-]+)\.png/)[1];
+  const disclosure = payload.htmlContent.match(/<details\b([^>]*)>([\s\S]*?)<\/details>/);
+  assert.ok(disclosure, 'The graph stays inside the email disclosure');
+  assert.doesNotMatch(disclosure[1], /\bopen\b/);
+  assert.match(disclosure[2], /<summary[^>]*>Review my forecast<\/summary>[\s\S]*<img src="https:\/\/api.example.test\/api\/email-assets\/trajectory\//);
+  assert.doesNotMatch(payload.htmlContent, /<a[^>]*>Review my forecast<\/a>|<script|onclick=|display:\s*none|opens the trajectory graph from this email at full size/);
+  assert.match(payload.htmlContent, /Some email apps show the graph directly instead/);
   const data = readTrajectoryToken(token);
   assert.equal(data.currentGrade, 2.25);
   assert.equal(data.predictedGrade, 3.4);
@@ -127,7 +133,7 @@ test('student email contains a private snapshot image and a valid PNG attachment
   assert.equal(metadata.format, 'png');
   assert.equal(metadata.width, 1120);
   assert.equal(payload.attachment[0].name, 'academic-trajectory.png');
-  assert.throws(() => readTrajectoryToken(`A${token.slice(1)}`));
+  assert.throws(() => readTrajectoryToken(`${token[0] === 'A' ? 'B' : 'A'}${token.slice(1)}`));
   assert.throws(() => readTrajectoryToken('invalid'));
 });
 

@@ -164,10 +164,25 @@ exports.designateProvider = async (req, res, next) => {
     const body = req.body || {};
     const { academicYear, semester } = validatePeriod(body.academicYear, body.semester);
     requireId(body.professorId);
+    if (body.replaceRequestId !== undefined) requireId(body.replaceRequestId);
     await transaction(async session => {
       const key = institutionKey(req.user.institution);
+      const pending = body.replaceRequestId !== undefined
+        ? await loadPendingRequest(req, body.replaceRequestId, session) : null;
       await guardParticipants(req.user._id, body.professorId, key, session);
       let record = await AcademicRecord.findOne({ student: req.user._id, institutionKey: key, academicYear, semester }).session(session);
+      if (pending) {
+        if (record && String(record._id) !== String(pending._id)) {
+          throw fail('This academic period already has a request or uploaded record. Choose another period or manage its existing request.', 409);
+        }
+        const before = pending.toObject();
+        Object.assign(pending, { academicYear, semester, provider: body.professorId, pendingProvider: null,
+          academicVersion: pending.academicVersion + 1 });
+        await pending.save({ session });
+        await Revision.create([{ academicRecord: pending._id, student: req.user._id, actor: req.user._id,
+          action: 'request_replaced', before, after: pending.toObject() }], { session });
+        return;
+      }
       if (record && String(record.provider) === body.professorId) return;
       if (record?.status === 'published') throw fail('This period already has an uploaded record. Ask the provider to arrange a transfer.', 409);
       const before = record?.toObject();
@@ -176,7 +191,41 @@ exports.designateProvider = async (req, res, next) => {
       await record.save({ session });
       await Revision.create([{ academicRecord: record._id, student: req.user._id, actor: req.user._id, action: 'provider_designated', before, after: record.toObject() }], { session });
     });
-    res.json({ message: 'Academic provider designated. Ask your professor to upload this period.', ...await loadWorkspace(req.user) });
+    res.json({ message: body.replaceRequestId !== undefined
+      ? 'Pending request replaced. Ask your professor to upload the updated period.'
+      : 'Academic provider designated. Ask your professor to upload this period.', ...await loadWorkspace(req.user) });
+  } catch (error) { next(error); }
+};
+
+async function loadPendingRequest(req, id, session) {
+  const version = req.body?.expectedVersion;
+  if (!Number.isInteger(version) || version < 0) throw fail('Include the current request version. Refresh your workspace and try again.');
+  const record = await AcademicRecord.findOne({ _id: id, student: req.user._id,
+    institutionKey: institutionKey(req.user.institution) }).session(session);
+  if (!record) throw fail('Pending request not found. Refresh your workspace.', 404);
+  if (record.status !== 'awaiting_upload') throw fail('This record has already been uploaded. Ask your professor to correct it or arrange a transfer.', 409);
+  if (record.academicVersion !== version) throw fail('This request changed. Refresh your workspace and try again.', 409);
+  return record;
+}
+
+exports.cancelPendingRequest = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'student') throw fail('Only students can cancel their pending academic requests.', 403);
+    requireId(req.params.id);
+    await transaction(async session => {
+      const record = await loadPendingRequest(req, req.params.id, session);
+      // Cancellation must also work after the provider disconnects. Guard the
+      // student's institution, without requiring an active provider connection.
+      const student = await User.findOneAndUpdate({ _id: req.user._id, role: 'student', emailVerified: true },
+        { $inc: { academicAccessRevision: 1 } }, { new: true, session });
+      if (!student || institutionKey(student.institution) !== record.institutionKey) throw fail('Your institution changed. Refresh your workspace.', 409);
+      const removed = await AcademicRecord.findOneAndDelete({ _id: record._id, student: req.user._id,
+        institutionKey: record.institutionKey, status: 'awaiting_upload', academicVersion: record.academicVersion }, { session });
+      if (!removed) throw fail('This request changed. Refresh your workspace and try again.', 409);
+      await Revision.create([{ academicRecord: record._id, student: req.user._id, actor: req.user._id,
+        action: 'request_cancelled', before: record.toObject() }], { session });
+    });
+    res.json({ message: 'Pending academic request cancelled. You can submit a new request at any time.', ...await loadWorkspace(req.user) });
   } catch (error) { next(error); }
 };
 
