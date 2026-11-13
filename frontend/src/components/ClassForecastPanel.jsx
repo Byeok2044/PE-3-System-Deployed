@@ -173,7 +173,7 @@ export default function ClassForecastPanel({ importedBatchId, onRunningChange, o
         <button type="button" className="connection-button" disabled={running || loading || !counts.outdated} onClick={() => run('outdated')}><RefreshCw size={15} /> Rerun Updated Students ({counts.outdated || 0})</button>
         <button type="button" className="connection-button" disabled={running || loading || !counts.failed} onClick={() => run('failed')}><RefreshCw size={15} /> Retry Failed Students</button>
         {running && <button type="button" className="connection-button" disabled={pausing} onClick={() => { stop.current = true; setPausing(true); }}><Pause size={15} />{pausing ? 'Pausing after current student…' : 'Pause'}</button>}
-        <button type="button" className="connection-button" disabled={running || loading} onClick={() => { setError(''); refresh().catch(err => setError(err.message)); }}>Refresh results</button>
+        <button type="button" className="connection-button" disabled={running || loading} onClick={() => { setError(''); refresh().catch(err => setError(err.message)); }}>Refresh Results</button>
         <button type="button" className="connection-button" disabled={running || !data.rows.length} onClick={exportResults}><Download size={15} /> Download Results CSV</button>
       </div>
       {notice && <p className="academic-notice" role="status">{notice}</p>}
