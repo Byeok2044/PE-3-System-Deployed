@@ -32,7 +32,7 @@ beforeEach(() => {
   connections = ['professor1', 'professor2'].map((id) => ({ status: 'accepted', professor: professor(id) }));
   activities = []; deliveries = []; errors = []; queries = [];
   for (const [key, value] of Object.entries({
-    BREVO_API_KEY: 'test-key', BREVO_SENDER_EMAIL: 'support@example.test',
+    MAILJET_API_KEY: 'test-key', MAILJET_SECRET_KEY: 'test-secret', MAILJET_SENDER_EMAIL: 'support@example.test',
     PUBLIC_APP_URL: 'https://students.example.test', RISK_ALERT_COOLDOWN_HOURS: '168',
     PUBLIC_API_URL: 'https://api.example.test', JWT_SECRET: 'test-risk-alert-key',
   })) {
@@ -40,7 +40,7 @@ beforeEach(() => {
     restores.push(() => { if (original === undefined) delete process.env[key]; else process.env[key] = original; });
   }
   stub(console, 'error', (...args) => { errors.push(args); });
-  stub(axios, 'post', async (url, payload) => { deliveries.push(payload); });
+  stub(axios, 'post', async (url, payload) => { deliveries.push(payload.Messages[0]); return { data: { Messages: [{ Status: 'success' }] } }; });
   stub(Connection, 'find', (filter) => {
     assert.deepEqual(filter, { student: student._id, status: 'accepted' });
     return { populate: async (path, fields) => {
@@ -71,9 +71,10 @@ test('medium and high risk notify the student and each accepted professor separa
   }
   assert.equal(deliveries.length, 6);
   for (const email of ['student@example.test', 'professor1@example.test', 'professor2@example.test']) {
-    assert.equal(deliveries.filter((payload) => payload.to[0].email === email).length, 2);
+    assert.equal(deliveries.filter((payload) => payload.To[0].Email === email).length, 2);
   }
-  assert.ok(deliveries.every((payload) => payload.to.length === 1 && !payload.cc && !payload.bcc));
+  assert.ok(deliveries.every((payload) => payload.To.length === 1 && !payload.Cc && !payload.Bcc));
+  assert.ok(deliveries.every((payload) => payload.TrackClicks === 'disabled' && payload.TrackOpens === 'disabled'));
   assert.equal(activities.filter((activity) => activity.alert.recipientRole === 'professor').length, 4);
   assert.equal(errors.length, 0);
 });
@@ -84,6 +85,20 @@ test('low risk never looks up recipients or sends alerts', async () => {
   assert.equal(deliveries.length, 0);
   assert.equal(queries.length, 0);
   assert.equal(errors.length, 0);
+});
+
+test('Mailjet message rejection never starts a cooldown and can be retried on a later forecast', async () => {
+  stub(axios, 'post', async () => ({ data: { Messages: [{ Status: 'error', Errors: [{ StatusCode: 429, ErrorCode: 'rate-limit' }] }] } }));
+  await sendRiskAlerts(student, forecast);
+  assert.equal(activities.length, 0);
+  assert.equal(errors.length, 3);
+  stub(axios, 'post', async (_url, payload) => {
+    deliveries.push(payload.Messages[0]);
+    return { data: { Messages: [{ Status: 'success' }] } };
+  });
+  await sendRiskAlerts(student, forecast);
+  assert.equal(deliveries.length, 3);
+  assert.equal(activities.length, 3);
 });
 
 test('only verified professors with accepted same-institution connections receive alerts', async () => {
@@ -99,7 +114,7 @@ test('only verified professors with accepted same-institution connections receiv
     connections[0],
   );
   await sendRiskAlerts(student, forecast);
-  assert.deepEqual(deliveries.map((payload) => payload.to[0].email).sort(), [
+  assert.deepEqual(deliveries.map((payload) => payload.To[0].Email).sort(), [
     'professor1@example.test', 'professor2@example.test', 'student@example.test',
   ]);
 });
@@ -112,7 +127,7 @@ test('legacy student cooldown and individual professor cooldown do not suppress 
     } },
   );
   await sendRiskAlerts(student, forecast);
-  assert.deepEqual(deliveries.map((payload) => payload.to[0].email), ['professor2@example.test']);
+  assert.deepEqual(deliveries.map((payload) => payload.To[0].Email), ['professor2@example.test']);
   await sendRiskAlerts(student, forecast);
   assert.equal(deliveries.length, 1);
 });
@@ -122,7 +137,7 @@ test('professor cooldown does not suppress the student and expired cooldown perm
     riskLevel: 'medium', recipientRole: 'professor', recipientId: 'professor1',
   } });
   await sendRiskAlerts(student, forecast);
-  assert.deepEqual(deliveries.map((payload) => payload.to[0].email).sort(), ['professor2@example.test', 'student@example.test']);
+  assert.deepEqual(deliveries.map((payload) => payload.To[0].Email).sort(), ['professor2@example.test', 'student@example.test']);
   for (const activity of activities) activity.createdAt = new Date(Date.now() - 169 * 60 * 60 * 1000);
   await sendRiskAlerts(student, forecast);
   assert.equal(deliveries.length, 5);
@@ -131,9 +146,11 @@ test('professor cooldown does not suppress the student and expired cooldown perm
 for (const failedEmail of ['student@example.test', 'professor1@example.test']) {
   test(`failure for ${failedEmail} does not block other recipients and is retried independently`, async () => {
     let fail = true;
-    stub(axios, 'post', async (url, payload) => {
-      if (fail && payload.to[0].email === failedEmail) throw new Error('Provider unavailable');
+    stub(axios, 'post', async (url, request) => {
+      const payload = request.Messages[0];
+      if (fail && payload.To[0].Email === failedEmail) throw new Error('Provider unavailable');
       deliveries.push(payload);
+      return { data: { Messages: [{ Status: 'success' }] } };
     });
     await sendRiskAlerts(student, forecast);
     assert.equal(deliveries.length, 2);
@@ -142,7 +159,7 @@ for (const failedEmail of ['student@example.test', 'professor1@example.test']) {
     fail = false;
     await sendRiskAlerts(student, forecast);
     assert.equal(deliveries.length, 3);
-    assert.equal(deliveries[2].to[0].email, failedEmail);
+    assert.equal(deliveries[2].To[0].Email, failedEmail);
     assert.equal(activities.length, 3);
   });
 }
@@ -151,14 +168,14 @@ test('professor lookup failure preserves the student email', async () => {
   stub(Connection, 'find', () => { throw new Error('Database lookup failed'); });
   await sendRiskAlerts(student, forecast);
   assert.equal(deliveries.length, 1);
-  assert.equal(deliveries[0].to[0].email, student.email);
+  assert.equal(deliveries[0].To[0].Email, student.email);
   assert.equal(errors.length, 1);
 });
 
 test('an unverified student is skipped without preventing verified professor notifications', async () => {
   await sendRiskAlerts({ ...student, emailVerified: false }, forecast);
   assert.equal(deliveries.length, 2);
-  assert.ok(deliveries.every((payload) => payload.to[0].email !== student.email));
+  assert.ok(deliveries.every((payload) => payload.To[0].Email !== student.email));
 });
 
 test('historical semester alerts recheck the selected record and keep its trajectory snapshot', async () => {
@@ -178,8 +195,8 @@ test('historical semester alerts recheck the selected record and keep its trajec
   assert.equal(reads.length, 3);
   assert.ok(reads.every(options => options.academicRecordId === record.academicRecordId && options.includeForecast === false));
   assert.equal(deliveries.length, 3);
-  assert.ok(deliveries.every(payload => /Current Term: <strong>8\.00/.test(payload.htmlContent)));
-  assert.ok(deliveries.every(payload => payload.attachment?.[0].name === 'academic-trajectory.png'));
+  assert.ok(deliveries.every(payload => /Current Term: <strong>8\.00/.test(payload.HTMLPart)));
+  assert.ok(deliveries.every(payload => payload.Attachments?.[0].Filename === 'academic-trajectory.png'));
   assert.equal(errors.length, 0);
 });
 
@@ -192,10 +209,12 @@ test('prediction route saves the forecast and notifies professors while email fa
   stub(require('../src/utils/professorHistory'), 'saveForecastActivity', async (user, workspace, result) => StudentActivity.create({ student: user._id, type: 'forecast_run', record: workspace.record, forecast: result }));
   const router = require('../src/routes/mlRoutes');
   const predict = router.stack.find((layer) => layer.route?.path === '/predict').route.stack.at(-1).handle;
-  stub(axios, 'post', async (url, payload) => {
+  stub(axios, 'post', async (url, request) => {
     if (url.endsWith('/predict')) return { data: forecast };
-    if (payload.to[0].email === student.email) throw new Error('Student delivery failed');
+    const payload = request.Messages[0];
+    if (payload.To[0].Email === student.email) throw new Error('Student delivery failed');
     deliveries.push(payload);
+    return { data: { Messages: [{ Status: 'success' }] } };
   });
   const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
   await predict({ user: student, body: {} }, res, (error) => { throw error; });
@@ -205,6 +224,6 @@ test('prediction route saves the forecast and notifies professors while email fa
   assert.equal(activities[0].record.attendance, 'day');
   assert.equal(activities[0].record.studySchedule, undefined);
   assert.equal(deliveries.length, 2);
-  assert.ok(deliveries.every((payload) => payload.to[0].email.startsWith('professor')));
-  assert.ok(deliveries.every((payload) => payload.attachment?.[0].name === 'academic-trajectory.png'));
+  assert.ok(deliveries.every((payload) => payload.To[0].Email.startsWith('professor')));
+  assert.ok(deliveries.every((payload) => payload.Attachments?.[0].Filename === 'academic-trajectory.png'));
 });

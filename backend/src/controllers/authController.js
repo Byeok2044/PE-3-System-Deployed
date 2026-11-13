@@ -1,7 +1,7 @@
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 const crypto = require('crypto');
-const axios = require('axios');
+const mailjet = require('../utils/mailjet');
 const mongoose = require('mongoose');
 const Connection = require('../models/StudentProfessorConnection');
 const Conversation = require('../models/Conversation');
@@ -21,9 +21,9 @@ const getClientUrl = () => {
   return publicUrl('').replace(/\/$/, '');
 };
 
-const getBrevoErrorMessage = (error) => {
-  const status = error.response?.status;
-  const detail = error.response?.data?.message || error.message;
+const getEmailErrorMessage = (error) => {
+  const status = error.providerStatus;
+  const detail = error.message;
 
   console.error('Unable to send verification email:', { status, detail });
 
@@ -68,32 +68,13 @@ const createEmailVerificationToken = (user) => {
 };
 
 const sendVerificationEmail = async (user, token) => {
-  if (!process.env.BREVO_API_KEY || !process.env.BREVO_SENDER_EMAIL) {
-    throw new Error('Email verification is not configured. Please contact support.');
-  }
-
   const verifyUrl = `${getClientUrl()}/verify-email/${token}`;
-  await axios.post(
-    'https://api.brevo.com/v3/smtp/email',
-    {
-      sender: {
-        email: process.env.BREVO_SENDER_EMAIL,
-        name: 'Retainify',
-      },
-      to: [{ email: user.email, name: user.fullName }],
-      subject: 'Verify your Retainify email address',
-      htmlContent: createVerificationEmail(verifyUrl),
-      textContent: `Verify your Retainify email address by copying this address into your browser:\n${verifyUrl}\n\nThis link expires in 24 hours. If you did not create an account, you can ignore this email.`,
-    },
-    {
-      headers: {
-        'api-key': process.env.BREVO_API_KEY,
-        accept: 'application/json',
-        'content-type': 'application/json',
-      },
-      timeout: 15000,
-    }
-  );
+  await mailjet.sendEmail({
+    to: user,
+    subject: 'Verify your Retainify email address',
+    html: createVerificationEmail(verifyUrl),
+    text: `Verify your Retainify email address by copying this address into your browser:\n${verifyUrl}\n\nThis link expires in 24 hours. If you did not create an account, you can ignore this email.`,
+  });
 };
 
 // @desc    Register a new user
@@ -135,7 +116,7 @@ exports.register = async (req, res, next) => {
         .json({ message: 'An account with this email already exists.' });
     }
 
-    if (!process.env.BREVO_API_KEY || !process.env.BREVO_SENDER_EMAIL) {
+    if (!mailjet.isConfigured()) {
       return res.status(503).json({ message: 'Email verification is temporarily unavailable. Please try again later.' });
     }
 
@@ -153,7 +134,7 @@ exports.register = async (req, res, next) => {
       await sendVerificationEmail(user, verificationToken);
     } catch (error) {
       await user.deleteOne();
-      return res.status(503).json({ message: getBrevoErrorMessage(error) });
+      return res.status(503).json({ message: getEmailErrorMessage(error) });
     }
 
     res.status(201).json({ message: 'Account created. Check your email to verify your address before signing in.' });
@@ -299,6 +280,9 @@ exports.verifyEmail = async (req, res, next) => {
 // @route   POST /api/auth/resend-verification
 exports.resendVerification = async (req, res, next) => {
   try {
+    if (!mailjet.isConfigured()) {
+      return res.status(503).json({ message: 'Email delivery is temporarily unavailable. Please try again later.' });
+    }
     const email = String(req.body.email || '').trim().toLowerCase();
     if (email) {
       const user = await User.findOne({ email });
@@ -308,7 +292,7 @@ exports.resendVerification = async (req, res, next) => {
         try {
           await sendVerificationEmail(user, verificationToken);
         } catch (error) {
-          getBrevoErrorMessage(error);
+          getEmailErrorMessage(error);
           return res.status(503).json({
             message: 'Email delivery is temporarily unavailable. Please try again later.',
           });
@@ -422,10 +406,10 @@ exports.forgotPassword = async (req, res, next) => {
       return res.status(400).json({ message: 'Email is required.' });
     }
 
-    if (!process.env.BREVO_API_KEY || !process.env.BREVO_SENDER_EMAIL) {
+    if (!mailjet.isConfigured()) {
       console.error('Password reset email is not configured.');
-      return res.status(200).json({
-        message: 'If an account exists for this email, a reset link has been sent.',
+      return res.status(503).json({
+        message: 'Password reset email is temporarily unavailable. Please try again later.',
       });
     }
 
@@ -442,34 +426,19 @@ exports.forgotPassword = async (req, res, next) => {
 
       try {
         const resetUrl = publicUrl(`/reset-password/${resetToken}`);
-        await axios.post(
-          'https://api.brevo.com/v3/smtp/email',
-          {
-            sender: {
-              email: process.env.BREVO_SENDER_EMAIL,
-              name: 'Retainify',
-            },
-            to: [{ email: user.email, name: user.fullName }],
-            subject: 'Reset your Retainify password',
-            htmlContent: createResetEmail(resetUrl),
-              textContent: `Reset your Retainify password by copying this address into your browser:\n${resetUrl}\n\nThis link expires in one hour. If you did not request a password reset, you can ignore this email.`,
-          },
-          {
-            headers: {
-              'api-key': process.env.BREVO_API_KEY,
-              accept: 'application/json',
-              'content-type': 'application/json',
-            },
-            timeout: 15000,
-          }
-        );
+        await mailjet.sendEmail({
+          to: user,
+          subject: 'Reset your Retainify password',
+          html: createResetEmail(resetUrl),
+          text: `Reset your Retainify password by copying this address into your browser:\n${resetUrl}\n\nThis link expires in one hour. If you did not request a password reset, you can ignore this email.`,
+        });
       } catch (error) {
         user.passwordResetToken = undefined;
         user.passwordResetExpires = undefined;
         await user.save({ validateBeforeSave: false });
         console.error(
           'Unable to send password reset email:',
-          error.response?.data || error.message
+          error.message
         );
       }
     }

@@ -2,7 +2,7 @@ const { test, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const axios = require('axios');
 const sharp = require('sharp');
-const { trajectoryData, readTrajectoryToken } = require('../src/utils/emailTrajectory');
+const { trajectoryData, trajectoryUrl, readTrajectoryToken } = require('../src/utils/emailTrajectory');
 const { sendRiskAlertEmail, isRiskAlertLevel } = require('../src/utils/riskAlertEmail');
 
 const student = { fullName: 'Student <Test> & Family', email: 'student@example.test' };
@@ -10,7 +10,7 @@ const forecast = {
   riskLevel: 'high', dropoutProbability: 0.7264,
   predictedNextSemesterGrade: 3.4, gradeMaximum: 5, completionRate: 0.625,
 };
-const envKeys = ['BREVO_API_KEY', 'BREVO_SENDER_EMAIL', 'BREVO_SENDER_NAME', 'PUBLIC_APP_URL', 'CLIENT_ORIGIN', 'PUBLIC_API_URL', 'JWT_SECRET'];
+const envKeys = ['MAILJET_API_KEY', 'MAILJET_SECRET_KEY', 'MAILJET_SENDER_EMAIL', 'PUBLIC_APP_URL', 'CLIENT_ORIGIN', 'PUBLIC_API_URL', 'JWT_SECRET'];
 let originalEnv;
 let originalPost;
 let deliveries;
@@ -19,13 +19,13 @@ beforeEach(() => {
   originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
   originalPost = axios.post;
   deliveries = [];
-  process.env.BREVO_API_KEY = 'test-key';
-  process.env.BREVO_SENDER_EMAIL = 'support@example.test';
-  process.env.BREVO_SENDER_NAME = 'EduForecaster';
+  process.env.MAILJET_API_KEY = 'test-key';
+  process.env.MAILJET_SECRET_KEY = 'test-secret';
+  process.env.MAILJET_SENDER_EMAIL = 'support@example.test';
   process.env.PUBLIC_APP_URL = 'https://students.example.test/';
   process.env.PUBLIC_API_URL = 'https://api.example.test';
   process.env.JWT_SECRET = 'test-email-trajectory-key';
-  axios.post = async (...args) => { deliveries.push(args); };
+  axios.post = async (url, payload, options) => { deliveries.push([url, payload.Messages[0], options]); return { data: { Messages: [{ Status: 'success' }] } }; };
 });
 
 afterEach(() => {
@@ -40,10 +40,10 @@ test('high-risk delivery includes the forecast, correct scale guidance and a dir
   await sendRiskAlertEmail({ student, forecast });
   assert.equal(deliveries.length, 1);
   const [endpoint, payload] = deliveries[0];
-  assert.equal(endpoint, 'https://api.brevo.com/v3/smtp/email');
-  assert.equal(payload.sender.name, 'Retainify');
-  assert.deepEqual(payload.to, [{ email: student.email, name: student.fullName }]);
-  const html = payload.htmlContent;
+  assert.equal(endpoint, 'https://api.mailjet.com/v3.1/send');
+  assert.equal(payload.From.Name, 'Retainify');
+  assert.deepEqual(payload.To, [{ Email: student.email, Name: student.fullName }]);
+  const html = payload.HTMLPart;
   assert.match(html, /Your forecast summary/);
   assert.match(html, /<strong>High<\/strong>/);
   assert.match(html, /73%/);
@@ -61,7 +61,7 @@ test('medium-risk delivery supports higher-is-better scales and zero completion'
     ...forecast, riskLevel: 'medium', dropoutProbability: 0.25,
     predictedNextSemesterGrade: 0, gradeMaximum: 100, completionRate: 0,
   } });
-  const html = deliveries[0][1].htmlContent;
+  const html = deliveries[0][1].HTMLPart;
   assert.match(html, /<strong>Medium<\/strong>/);
   assert.match(html, /25%/);
   assert.match(html, /0\.00 \/ 100/);
@@ -76,14 +76,14 @@ test('button falls back to the first client origin and clears query strings and 
   delete process.env.PUBLIC_APP_URL;
   process.env.CLIENT_ORIGIN = ' https://students.example.test/portal/?old=1#home,https://other.example.test';
   await sendRiskAlertEmail({ student, forecast });
-  const html = deliveries[0][1].htmlContent;
+  const html = deliveries[0][1].HTMLPart;
   assert.match(html, /href="https:\/\/students\.example\.test\/portal\/dashboard\/insights"/);
   assert.doesNotMatch(html, /old=1|#home|other\.example/);
 });
 
 test('missing forecast metrics are labelled unavailable rather than shown as zero or NaN', async () => {
   await sendRiskAlertEmail({ student, forecast: { riskLevel: 'high' } });
-  const html = deliveries[0][1].htmlContent;
+  const html = deliveries[0][1].HTMLPart;
   assert.match(html, /Not available/);
   assert.doesNotMatch(html, /NaN|undefined|<td>0%<\/td>/);
 });
@@ -98,41 +98,42 @@ test('professor delivery identifies the student and links to the professor traje
   const professor = { fullName: 'Professor <Test>', email: 'professor@example.test' };
   await sendRiskAlertEmail({ student, forecast, professor });
   const payload = deliveries[0][1];
-  assert.deepEqual(payload.to, [{ email: professor.email, name: professor.fullName }]);
-  assert.match(payload.subject, /Student support check-in: Student .*High support risk/);
-  assert.match(payload.htmlContent, /Hello Professor Professor &lt;Test&gt;/);
-  assert.match(payload.htmlContent, /Your connected student <strong>Student &lt;Test&gt; &amp; Family/);
-  assert.match(payload.htmlContent, /Student forecast summary/);
-  assert.match(payload.htmlContent, /3\.40 \/ 5/);
-  assert.match(payload.htmlContent, /lower numbers are better/);
-  assert.match(payload.htmlContent, /href="https:\/\/students\.example\.test\/dashboard"/);
-  assert.match(payload.htmlContent, /View Trajectory/);
-  assert.doesNotMatch(payload.htmlContent, /dashboard\/insights|student account|SHAP/);
+  assert.deepEqual(payload.To, [{ Email: professor.email, Name: professor.fullName }]);
+  assert.match(payload.Subject, /Student support check-in: Student .*High support risk/);
+  assert.match(payload.HTMLPart, /Hello Professor Professor &lt;Test&gt;/);
+  assert.match(payload.HTMLPart, /Your connected student <strong>Student &lt;Test&gt; &amp; Family/);
+  assert.match(payload.HTMLPart, /Student forecast summary/);
+  assert.match(payload.HTMLPart, /3\.40 \/ 5/);
+  assert.match(payload.HTMLPart, /lower numbers are better/);
+  assert.match(payload.HTMLPart, /href="https:\/\/students\.example\.test\/dashboard"/);
+  assert.match(payload.HTMLPart, /View Trajectory/);
+  assert.doesNotMatch(payload.HTMLPart, /dashboard\/insights|student account|SHAP/);
 });
 
-test('student email contains a private snapshot image and a valid PNG attachment matching the professor chart', async () => {
+test('student email embeds the trajectory PNG and includes a downloadable copy matching the professor chart', async () => {
   await sendRiskAlertEmail({ student, forecast, record: { previousSemesterGrade: 2.25, gradeMaximum: 5 } });
   const payload = deliveries[0][1];
-  assert.match(payload.htmlContent, /Academic trajectory/);
-  assert.match(payload.htmlContent, /Current Term: <strong>2.25/);
-  assert.match(payload.htmlContent, /Next Term \(ML\): <strong>3.40/);
-  const token = payload.htmlContent.match(/trajectory\/([A-Za-z0-9_-]+)\.png/)[1];
-  const disclosure = payload.htmlContent.match(/<details\b([^>]*)>([\s\S]*?)<\/details>/);
-  assert.ok(disclosure, 'The graph stays inside the email disclosure');
-  assert.doesNotMatch(disclosure[1], /\bopen\b/);
-  assert.match(disclosure[2], /<summary[^>]*>Review my forecast<\/summary>[\s\S]*<img src="https:\/\/api.example.test\/api\/email-assets\/trajectory\//);
-  assert.doesNotMatch(payload.htmlContent, /<a[^>]*>Review my forecast<\/a>|<script|onclick=|display:\s*none|opens the trajectory graph from this email at full size/);
-  assert.match(payload.htmlContent, /Some email apps show the graph directly instead/);
-  const data = readTrajectoryToken(token);
-  assert.equal(data.currentGrade, 2.25);
-  assert.equal(data.predictedGrade, 3.4);
-  assert.equal(data.cutoff, 3);
-  assert.equal(data.reversed, true);
-  const png = Buffer.from(payload.attachment[0].content, 'base64');
+  assert.match(payload.HTMLPart, /Academic trajectory/);
+  assert.match(payload.HTMLPart, /Current Term: <strong>2.25/);
+  assert.match(payload.HTMLPart, /Next Term \(ML\): <strong>3.40/);
+  assert.match(payload.HTMLPart, /<img src="cid:academic-trajectory"/);
+  assert.doesNotMatch(payload.HTMLPart, /Review my forecast|<details\b|<summary\b|<script|onclick=|display:\s*none|expand the graph/);
+  assert.equal(payload.InlinedAttachments[0].ContentID, 'academic-trajectory');
+  assert.equal(payload.InlinedAttachments[0].Base64Content, payload.Attachments[0].Base64Content);
+  assert.equal(payload.InlinedAttachments[0].ContentType, 'image/png');
+  assert.equal(payload.TrackClicks, 'disabled');
+  assert.equal(payload.TrackOpens, 'disabled');
+  const png = Buffer.from(payload.Attachments[0].Base64Content, 'base64');
   const metadata = await sharp(png).metadata();
   assert.equal(metadata.format, 'png');
   assert.equal(metadata.width, 1120);
-  assert.equal(payload.attachment[0].name, 'academic-trajectory.png');
+  assert.equal(payload.Attachments[0].Filename, 'academic-trajectory.png');
+});
+
+test('image links in previously sent emails still accept encrypted snapshots and reject tampering', () => {
+  const data = trajectoryData({ previousSemesterGrade: 2.25, gradeMaximum: 5 }, forecast);
+  const token = trajectoryUrl(data).match(/trajectory\/([A-Za-z0-9_-]+)\.png/)[1];
+  assert.deepEqual(readTrajectoryToken(token), data);
   assert.throws(() => readTrajectoryToken(`${token[0] === 'A' ? 'B' : 'A'}${token.slice(1)}`));
   assert.throws(() => readTrajectoryToken('invalid'));
 });

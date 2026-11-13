@@ -7,8 +7,10 @@
     "start": "node src/Server.js",
     "dev": "nodemon src/Server.js",
     "test": "node --test test/*.test.js",
+    "email:check": "node scripts/checkMailjet.js",
     "academics:migrate": "node scripts/migrateAcademicOwnership.js",
-    "academics:seed-mock": "node scripts/seedMockClass.js"
+    "academics:seed-mock": "node scripts/seedMockClass.js",
+    "academics:reset-mock-passwords": "node scripts/resetMockPasswords.js"
   },
   "dependencies": {
     "axios": "^1.7.7",

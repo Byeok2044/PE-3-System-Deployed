@@ -12,10 +12,10 @@ const response = () => ({ code: 200, status(code) { this.code = code; return thi
 const invoke = async (method, req) => { const res = response(); await auth[method](req, res, error => { throw error; }); return res; };
 beforeEach(() => {
   messages = []; accounts.length = 0;
-  for (const [key, value] of Object.entries({ BREVO_API_KEY: 'test', BREVO_SENDER_EMAIL: 'support@example.test', PUBLIC_APP_URL: 'https://retainify.example.test', JWT_SECRET: 'test' })) {
+  for (const [key, value] of Object.entries({ MAILJET_API_KEY: 'test', MAILJET_SECRET_KEY: 'test-secret', MAILJET_SENDER_EMAIL: 'support@example.test', PUBLIC_APP_URL: 'https://retainify.example.test', JWT_SECRET: 'test' })) {
     const old = process.env[key]; process.env[key] = value; restores.push(() => { if (old === undefined) delete process.env[key]; else process.env[key] = old; });
   }
-  stub(axios, 'post', async (url, payload, options) => { messages.push({ url, payload, options }); return { data: { messageId: 'accepted' } }; });
+  stub(axios, 'post', async (url, payload, options) => { messages.push({ url, payload: payload.Messages[0], options }); return { data: { Messages: [{ Status: 'success' }] } }; });
   stub(console, 'error', () => {});
   stub(User, 'create', async fields => {
     const account = { ...fields, _id: 'test-user', emailVerified: false, failedLoginAttempts: 0,
@@ -32,14 +32,17 @@ beforeEach(() => {
 });
 afterEach(() => { while (restores.length) restores.pop()(); });
 const registration = { fullName: 'Verification Test', email: 'test@example.test', institution: 'Test School', role: 'student', password: 'test-password' };
-const tokenFromEmail = () => messages.at(-1).payload.htmlContent.match(/verify-email\/([a-f0-9]{64})/)[1];
+const tokenFromEmail = () => messages.at(-1).payload.HTMLPart.match(/verify-email\/([a-f0-9]{64})/)[1];
 
 test('registration sends a public verification link, blocks login until verified, then permits login; token cannot be reused', async () => {
   assert.equal((await invoke('register', { body: registration })).code, 201);
   assert.equal(messages.length, 1);
+  assert.equal(messages[0].url, 'https://api.mailjet.com/v3.1/send');
+  assert.equal(messages[0].payload.TrackClicks, 'disabled');
+  assert.equal(messages[0].payload.TrackOpens, 'disabled');
   const token = tokenFromEmail();
   assert.equal(accounts[0].emailVerificationToken, crypto.createHash('sha256').update(token).digest('hex'));
-  assert.match(messages[0].payload.htmlContent, /https:\/\/retainify.example.test\/verify-email\//);
+  assert.match(messages[0].payload.HTMLPart, /https:\/\/retainify.example.test\/verify-email\//);
   assert.equal(messages[0].options.timeout, 15000);
   assert.equal((await invoke('login', { body: registration })).body.code, 'EMAIL_NOT_VERIFIED');
   assert.equal((await invoke('verifyEmail', { params: { token } })).code, 200);
@@ -73,8 +76,8 @@ test('verification URL uses only the first origin and rejects unsafe configurati
   const old = process.env.CLIENT_ORIGIN; process.env.CLIENT_ORIGIN = ' https://retainify.example.test/?a=1#old,https://other.example.test';
   restores.push(() => { if (old === undefined) delete process.env.CLIENT_ORIGIN; else process.env.CLIENT_ORIGIN = old; });
   await invoke('register', { body: registration });
-  assert.match(messages[0].payload.htmlContent, /https:\/\/retainify.example.test\/verify-email\//);
-  assert.doesNotMatch(messages[0].payload.htmlContent, /other.example|a=1|#old/);
+  assert.match(messages[0].payload.HTMLPart, /https:\/\/retainify.example.test\/verify-email\//);
+  assert.doesNotMatch(messages[0].payload.HTMLPart, /other.example|a=1|#old/);
 });
 
 test('password reset uses the same public frontend as verification and consumes its one-time token', async () => {
@@ -84,10 +87,12 @@ test('password reset uses the same public frontend as verification and consumes 
   restores.push(() => { if (oldOrigin === undefined) delete process.env.CLIENT_ORIGIN; else process.env.CLIENT_ORIGIN = oldOrigin; });
   await invoke('forgotPassword', { body: { email: '  TEST@example.test  ' } });
   const { payload, options } = messages.at(-1);
-  assert.match(payload.htmlContent, /https:\/\/retainify.example.test\/reset-password\//);
-  assert.doesNotMatch(payload.htmlContent, /localhost|old.example/);
+  assert.equal(payload.TrackClicks, 'disabled');
+  assert.equal(payload.TrackOpens, 'disabled');
+  assert.match(payload.HTMLPart, /https:\/\/retainify.example.test\/reset-password\//);
+  assert.doesNotMatch(payload.HTMLPart, /localhost|old.example/);
   assert.equal(options.timeout, 15000);
-  const token = payload.htmlContent.match(/reset-password\/([a-f0-9]{64})/)[1];
+  const token = payload.HTMLPart.match(/reset-password\/([a-f0-9]{64})/)[1];
   assert.equal(accounts[0].passwordResetToken, crypto.createHash('sha256').update(token).digest('hex'));
   accounts[0].failedLoginAttempts = 4;
   const req = { params: { token }, body: { password: 'replacement-password' } };
@@ -98,10 +103,28 @@ test('password reset uses the same public frontend as verification and consumes 
   assert.equal((await invoke('resetPassword', req)).code, 400);
 });
 
+test('a rejected Mailjet message is not reported as a successful registration or a sent reset', async () => {
+  stub(axios, 'post', async () => ({ data: { Messages: [{ Status: 'error', Errors: [{ StatusCode: 403, ErrorCode: 'send-0008' }] }] } }));
+  assert.equal((await invoke('register', { body: registration })).code, 503);
+  assert.equal(accounts.length, 0);
+  await User.create(registration);
+  await invoke('forgotPassword', { body: { email: registration.email } });
+  assert.equal(accounts[0].passwordResetToken, undefined);
+});
+
+test('missing Mailjet credentials prevent registration, resend, and reset requests with a retryable error', async () => {
+  delete process.env.MAILJET_SECRET_KEY;
+  assert.equal((await invoke('register', { body: registration })).code, 503);
+  assert.equal(accounts.length, 0);
+  assert.equal((await invoke('resendVerification', { body: { email: registration.email } })).code, 503);
+  assert.equal((await invoke('forgotPassword', { body: { email: registration.email } })).code, 503);
+  assert.equal(messages.length, 0);
+});
+
 test('expired reset tokens are rejected; delivery/configuration failures clear the pending token', async () => {
   await invoke('register', { body: registration });
   await invoke('forgotPassword', { body: { email: registration.email } });
-  const token = messages.at(-1).payload.htmlContent.match(/reset-password\/([a-f0-9]{64})/)[1];
+  const token = messages.at(-1).payload.HTMLPart.match(/reset-password\/([a-f0-9]{64})/)[1];
   accounts[0].passwordResetExpires = new Date(Date.now() - 1000);
   assert.equal((await invoke('resetPassword', { params: { token }, body: { password: 'replacement-password' } })).code, 400);
   assert.equal((await invoke('resetPassword', { params: { token: 'bad' }, body: { password: 'replacement-password' } })).code, 400);
@@ -128,19 +151,19 @@ test('new verification and reset emails use the deployed frontend in production'
   for (const explicitUrl of [frontend, undefined]) {
     if (explicitUrl) process.env.PUBLIC_APP_URL = explicitUrl; else delete process.env.PUBLIC_APP_URL;
     await invoke('resendVerification', { body: { email: registration.email } });
-    const verify = messages.at(-1).payload.htmlContent.match(/href="([^"]+)"/)[1];
+    const verify = messages.at(-1).payload.HTMLPart.match(/href="([^"]+)"/)[1];
     assert.equal(new URL(verify).origin, frontend);
     assert.match(new URL(verify).pathname, /^\/verify-email\/[a-f0-9]{64}$/);
-    assert.ok(messages.at(-1).payload.htmlContent.includes(`<span>${verify}</span>`), 'Verification includes the direct URL as copyable text, outside a tracked anchor');
-    assert.ok(messages.at(-1).payload.textContent.includes(verify));
-    assert.match(messages.at(-1).payload.textContent, /24 hours/);
+    assert.ok(messages.at(-1).payload.HTMLPart.includes(`<span>${verify}</span>`), 'Verification includes the direct URL as copyable text, outside a tracked anchor');
+    assert.ok(messages.at(-1).payload.TextPart.includes(verify));
+    assert.match(messages.at(-1).payload.TextPart, /24 hours/);
     await invoke('forgotPassword', { body: { email: registration.email } });
-    const reset = messages.at(-1).payload.htmlContent.match(/href="([^"]+)"/)[1];
+    const reset = messages.at(-1).payload.HTMLPart.match(/href="([^"]+)"/)[1];
     assert.equal(new URL(reset).origin, frontend);
     assert.match(new URL(reset).pathname, /^\/reset-password\/[a-f0-9]{64}$/);
-    assert.ok(messages.at(-1).payload.htmlContent.includes(`<span>${reset}</span>`), 'Password reset includes the direct URL as copyable text, outside a tracked anchor');
-    assert.ok(messages.at(-1).payload.textContent.includes(reset));
-    assert.match(messages.at(-1).payload.textContent, /one hour/);
+    assert.ok(messages.at(-1).payload.HTMLPart.includes(`<span>${reset}</span>`), 'Password reset includes the direct URL as copyable text, outside a tracked anchor');
+    assert.ok(messages.at(-1).payload.TextPart.includes(reset));
+    assert.match(messages.at(-1).payload.TextPart, /one hour/);
     assert.doesNotMatch(`${verify}${reset}`, /localhost|other.example/);
   }
 });

@@ -1,6 +1,6 @@
-const axios = require('axios');
+const mailjet = require('./mailjet');
 const { publicUrl } = require('./publicUrl');
-const { trajectoryData, renderTrajectory, trajectoryUrl } = require('./emailTrajectory');
+const { trajectoryData, renderTrajectory } = require('./emailTrajectory');
 
 const ALERT_LEVELS = new Set(['medium', 'high']);
 
@@ -26,14 +26,6 @@ const createRiskAlertEmail = ({ student, forecast, professor, trajectory, imageU
   const trajectoryImage = trajectory ? `<h2 style="font-size:20px;color:#0d47a1">Academic trajectory</h2>
       <img src="${escapeHtml(imageUrl)}" width="560" alt="Academic trajectory: Current Term ${trajectory.currentGrade.toFixed(2)} to Next Term (ML) ${trajectory.predictedGrade.toFixed(2)}; passing cutoff ${trajectory.cutoff}." style="display:block;width:100%;max-width:560px;height:auto;border:1px solid #e2e8f0;border-radius:8px" />
       <p style="font-size:13px;color:#475569">Current Term: <strong>${trajectory.currentGrade.toFixed(2)}</strong> &rarr; Next Term (ML): <strong>${trajectory.predictedGrade.toFixed(2)}</strong>. Passing cutoff: ${trajectory.cutoff}. This uses the same source grades and scale as the professor overview. If images are blocked, open the attached academic-trajectory.png.</p>` : '';
-  // Native disclosure keeps the graph in the message without scripts, forms,
-  // or navigation. Clients that strip these tags can still display the image:
-  // do not add display:none to the contents as a CSS toggle would require.
-  const studentTrajectory = trajectory ? `<details style="margin:28px 0">
-      <summary style="background:#0d47a1;color:#fff;padding:12px 18px;border-radius:4px;cursor:pointer;font-weight:bold">Review my forecast</summary>
-      ${trajectoryImage}
-      </details>
-      <p style="font-size:13px;color:#475569">Select Review my forecast to expand the graph here. Some email apps show the graph directly instead. If images are blocked, allow images or open the attached academic-trajectory.png.</p>` : '';
   const gradeScaleNote = Number(forecast.gradeMaximum) === 5
     ? 'On the 1.0-5.0 GWA scale, lower numbers are better; 3.0 is passing and 5.0 is failing.'
     : 'On this grade scale, higher numbers indicate better results.';
@@ -50,7 +42,7 @@ const createRiskAlertEmail = ({ student, forecast, professor, trajectory, imageU
         <tr style="background:#f1f5f9"><th scope="row">Predicted next-semester grade</th><td>${predictedGrade} / ${gradeMaximum}</td></tr>
         <tr><th scope="row">Previous-semester completion rate</th><td>${completionRate}</td></tr>
       </table>
-      ${professor ? trajectoryImage : studentTrajectory}
+      ${trajectoryImage}
       <p style="font-size:13px;color:#475569">${gradeScaleNote} Completion rate is the share of enrolled units you passed in the previous semester, not a predicted graduation rate.</p>
       <p style="font-size:13px;color:#475569">This summary shows the forecast that triggered this email. The app displays your latest saved forecast.</p>
       <p>${professor ? 'Please review the shared academic record and trajectory in your professor dashboard, and consider a supportive check-in with the student. Discuss their circumstances before drawing conclusions or recommending support.' : 'Small, timely steps can make a difference. Please review your forecast and consider speaking with a professor, adviser, or student-support service about attendance, coursework, finances, or any barriers you are facing.'}</p>
@@ -67,35 +59,25 @@ const createRiskAlertEmail = ({ student, forecast, professor, trajectory, imageU
 const isRiskAlertLevel = (riskLevel) => ALERT_LEVELS.has(String(riskLevel || '').toLowerCase());
 
 const sendRiskAlertEmail = async ({ student, forecast, professor, record }) => {
-  if (!process.env.BREVO_API_KEY || !process.env.BREVO_SENDER_EMAIL) {
+  if (!mailjet.isConfigured()) {
     throw new Error('Risk alert email is not configured.');
   }
 
   const trajectory = trajectoryData(record, forecast);
-  const imageUrl = trajectory ? trajectoryUrl(trajectory) : null;
+  const imageUrl = trajectory ? 'cid:academic-trajectory' : null;
   const png = trajectory ? await renderTrajectory(trajectory) : null;
-  await axios.post(
-    'https://api.brevo.com/v3/smtp/email',
-    {
-      sender: {
-        email: process.env.BREVO_SENDER_EMAIL,
-        name: 'Retainify',
-      },
-      to: [{ email: (professor || student).email, name: (professor || student).fullName }],
-      subject: professor
-        ? `Student support check-in: ${student.fullName} (${displayRiskLevel(forecast.riskLevel)} support risk)`
-        : `Academic support check-in: ${displayRiskLevel(forecast.riskLevel)} support risk`,
-      htmlContent: createRiskAlertEmail({ student, forecast, professor, trajectory, imageUrl }),
-      ...(png ? { attachment: [{ name: 'academic-trajectory.png', content: png.toString('base64') }] } : {}),
-    },
-    {
-      headers: {
-        'api-key': process.env.BREVO_API_KEY,
-        'content-type': 'application/json',
-      },
-      timeout: 10000,
-    }
-  );
+  const image = png ? { Filename: 'academic-trajectory.png', ContentType: 'image/png', Base64Content: png.toString('base64') } : null;
+  await mailjet.sendEmail({
+    to: professor || student,
+    subject: professor
+      ? `Student support check-in: ${student.fullName} (${displayRiskLevel(forecast.riskLevel)} support risk)`
+      : `Academic support check-in: ${displayRiskLevel(forecast.riskLevel)} support risk`,
+    html: createRiskAlertEmail({ student, forecast, professor, trajectory, imageUrl }),
+    ...(image ? {
+      attachments: [image],
+      inlineAttachments: [{ ...image, ContentID: 'academic-trajectory' }],
+    } : {}),
+  });
 };
 
 module.exports = { isRiskAlertLevel, sendRiskAlertEmail };
