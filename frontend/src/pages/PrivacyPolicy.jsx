@@ -13,9 +13,11 @@ const PrivacyPolicy = () => {
     <div className="legal-page">
       <header className="legal-header">
         <BrandLogo className="legal-logo" />
-        <Link to="/" className="legal-back-link">
-          ← Back to home
-        </Link>
+        {!isEmbedded && (
+          <Link to="/" className="legal-back-link">
+            Back to home
+          </Link>
+        )}
       </header>
 
       <div className="legal-content">
