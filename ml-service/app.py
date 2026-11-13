@@ -7,7 +7,7 @@ import logging
 import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, model_validator
 
 from grading_scale import from_model_scale, to_model_scale
@@ -130,12 +130,13 @@ def to_model_features(payload: PredictionInput) -> pd.DataFrame:
 
 @app.get("/health")
 def health():
-    return {
+    # Only this public GET needs browser access for independent service wake-up.
+    return JSONResponse({
         "status": "ok" if model_load_error is None else "degraded",
         "gradeModel": GRADE_MODEL_PATH.name,
         "riskModel": RISK_MODEL_PATH.name,
         "error": model_load_error,
-    }
+    }, headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-store"})
 
 
 @app.post("/predict")
