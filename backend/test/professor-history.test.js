@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const controller = require('../src/controllers/professorHistoryController');
 const history = require('../src/utils/professorHistory');
 const Event = require('../src/models/ProfessorHistoryEvent');
+const Deletion = require('../src/models/ProfessorHistoryDeletion');
 const Batch = require('../src/models/AcademicImportBatch');
 const Revision = require('../src/models/AcademicRecordRevision');
 const Activity = require('../src/models/StudentActivity');
@@ -81,13 +82,19 @@ test('cursor pagination remains deterministic when different sources have identi
   assert.equal(String(controller.cursorFilter('history', 'occurredAt', cursor).$or[1]._id.$lt), id(7));
 });
 
-function historyFixtures({ connected = true, events = [], revisions = [revision], batches = [batch], activities = [] } = {}) {
+function historyFixtures({ connected = true, events = [], revisions = [revision], batches = [batch], activities = [], deletions = [] } = {}) {
   const calls = [];
+  stub(Deletion, 'find', filter => { calls.push(['deletions', filter]); return query(deletions.filter(item => item.professor === filter.professor && item.institutionKey === filter.institutionKey)); });
   stub(Connection, 'find', filter => { calls.push(['connections', filter]); return query(connected ? [{ _id: id(5), student, createdAt: new Date('2026-01-01') }] : []); });
   stub(User, 'find', filter => query(filter._id ? [{ _id: professor._id, fullName: professor.fullName }] : [{ _id: student._id }]));
   for (const [name, model, rows] of [['batch', Batch, batches], ['revision', Revision, revisions], ['history', Event, events], ['forecast', Activity, activities]]) {
-    stub(model, 'find', filter => { calls.push([name, filter]); return query(rows); });
-    stub(model, 'countDocuments', async filter => { calls.push([name + '-count', filter]); return rows.length; });
+    const visibleRows = filter => {
+      const excluded = part => [...(part._id?.$nin || []), ...(part.$and || []).flatMap(excluded)];
+      const hidden = excluded(filter);
+      return rows.filter(row => !hidden.includes(String(row._id)));
+    };
+    stub(model, 'find', filter => { calls.push([name, filter]); return query(visibleRows(filter)); });
+    stub(model, 'countDocuments', async filter => { calls.push([name + '-count', filter]); return visibleRows(filter).length; });
   }
   return calls;
 }
@@ -117,6 +124,61 @@ test('category filtering only fetches that event source and batch-ID searches in
   assert.ifError(res.error); assert.ok(res.body.events.every(event => event.category === 'csv_import'));
   assert.equal(calls.some(([name]) => ['revision', 'history', 'forecast'].includes(name)), false);
   assert.match(JSON.stringify(calls.find(([name]) => name === 'revision-count')[1]), /importBatch/);
+});
+
+test('professor deletion scopes all four sources and only writes a personal timeline deletion', async () => {
+  historyFixtures();
+  const writes = [];
+  stub(Deletion, 'updateOne', async (filter, update, options) => { writes.push(filter); assert.deepEqual(update.$setOnInsert, filter); assert.equal(options.upsert, true); });
+  for (const [source, model] of [['batch', Batch], ['revision', Revision], ['history', Event], ['forecast', Activity]]) {
+    stub(model, 'exists', async filter => {
+      const scope = JSON.stringify(filter);
+      assert.match(scope, new RegExp(id(7)));
+      if (source === 'forecast') { assert.match(scope, new RegExp(student._id)); assert.match(scope, /professorHistoryRecorded|forecast_run/); }
+      else { assert.match(scope, new RegExp(professor._id)); assert.match(scope, /school a/); }
+      if (source === 'revision') assert.match(scope, /corrected|transfer_requested/);
+      if (source === 'batch') assert.match(scope, /committed/);
+      return { _id: id(7) };
+    });
+    stub(model, 'deleteOne', () => { throw new Error('Source records must be retained'); });
+    stub(model, 'findOneAndDelete', () => { throw new Error('Source records must be retained'); });
+    const res = await invoke(controller.deleteProfessorHistoryEntry, { user: professor, params: { eventId: `${source}:${id(7)}` } });
+    assert.ifError(res.error); assert.equal(res.body.message, 'History entry deleted.');
+    assert.deepEqual(writes.at(-1), { professor: professor._id, institutionKey: 'school a', eventId: `${source}:${id(7)}` });
+  }
+  assert.equal(writes.length, 4);
+});
+
+test('deletion rejects students, malformed identifiers, and entries outside the professor audience', async () => {
+  historyFixtures();
+  stub(Deletion, 'updateOne', () => { throw new Error('Unauthorized deletion'); });
+  let res = await invoke(controller.deleteProfessorHistoryEntry, { user: student, params: { eventId: `batch:${id(3)}` } });
+  assert.equal(res.error.status, 403);
+  for (const eventId of ['invalid', `user:${id(3)}`, 'batch:123', `batch:${id(3)}:extra`]) {
+    res = await invoke(controller.deleteProfessorHistoryEntry, { user: professor, params: { eventId } });
+    assert.equal(res.error.status, 400);
+  }
+  for (const [source, model] of [['batch', Batch], ['revision', Revision], ['history', Event], ['forecast', Activity]]) {
+    stub(model, 'exists', async () => null);
+    res = await invoke(controller.deleteProfessorHistoryEntry, { user: professor, params: { eventId: `${source}:${id(99)}` } });
+    assert.equal(res.error.status, 404);
+  }
+});
+
+test('deleted entries stay out of source queries, counts, and pagination while other professors keep them', async () => {
+  const deletions = ['batch', 'revision', 'history', 'forecast'].map((source, i) => ({ professor: professor._id, institutionKey: 'school a', eventId: `${source}:${id(i + 3)}` }));
+  const fixtures = { deletions, batches: [{ ...batch, _id: id(3) }], revisions: [{ ...revision, _id: id(4) }],
+    events: [{ _id: id(5), category: 'connection', action: 'accepted', occurredAt: time, actor: history.person(professor), student: history.person(student), details: {} }],
+    activities: [{ _id: id(6), student, createdAt: time, forecast: {} }] };
+  historyFixtures(fixtures);
+  for (const query of [{}, { type: 'forecast' }, { pageSize: 1 }]) {
+    const res = await invoke(controller.getProfessorHistory, { user: professor, query });
+    assert.ifError(res.error); assert.deepEqual(res.body.events, []); assert.equal(res.body.total, 0); assert.equal(res.body.nextCursor, null);
+    assert.ok(Object.values(res.body.counts).every(count => count === 0));
+  }
+  const res = await invoke(controller.getProfessorHistory, { user: { ...professor, _id: id(99) }, query: {} });
+  assert.ifError(res.error); assert.equal(res.body.events.length, 4);
+  assert.equal(fixtures.batches.length, 1); assert.equal(fixtures.revisions.length, 1); assert.equal(fixtures.activities.length, 1);
 });
 
 function forecastFixtures({ stale = false, providerConnected = true } = {}) {

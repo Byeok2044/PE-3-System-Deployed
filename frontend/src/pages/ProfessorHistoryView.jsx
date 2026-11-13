@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { ArrowLeftRight, BarChart3, CheckCircle2, ChevronDown, FileSpreadsheet, FilePenLine, History, RefreshCw, Search, UsersRound } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { ArrowLeftRight, BarChart3, CheckCircle2, ChevronDown, FileSpreadsheet, FilePenLine, History, RefreshCw, Search, Trash2, UsersRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import useAdaptivePolling from '../hooks/useAdaptivePolling';
 import '../styles/ProfessorHistory.css';
+import '../styles/Dashboard.css';
 
 const TYPES = {
   csv_import: { label: 'CSV imports', icon: FileSpreadsheet, color: 'blue' },
@@ -26,7 +27,7 @@ export function eventTitle(event) {
   return 'Student forecast generated';
 }
 
-export function ProfessorHistoryEvent({ event }) {
+export function ProfessorHistoryEvent({ event, onDelete, deleting = false }) {
   const type = TYPES[event.category] || TYPES.connection;
   const Icon = type.icon;
   const details = event.details || {};
@@ -80,7 +81,30 @@ export function ProfessorHistoryEvent({ event }) {
         </>}
       </div>
     </details>
+    {onDelete && <div className="professor-history-event-actions">
+      <button type="button" className="history-delete-btn" onClick={() => onDelete(event)} disabled={deleting}
+        aria-label={`Delete ${eventTitle(event).toLowerCase()} from history`} title="Delete activity record">
+        <Trash2 size={14} /><span>{deleting ? 'Deleting...' : 'Delete'}</span>
+      </button>
+    </div>}
   </li>;
+}
+
+export function ProfessorHistoryDeleteDialog({ event, deleting, error, onConfirm, onDismiss }) {
+  if (!event) return null;
+  return <div className="risk-pop-backdrop" role="dialog" aria-modal="true" aria-labelledby="professor-history-delete-title" aria-describedby="professor-history-delete-description"
+    onClick={() => { if (!deleting) onDismiss(); }} onKeyDown={event => { if (event.key === 'Escape' && !deleting) onDismiss(); }}>
+    <div className="risk-pop-modal border-red" onClick={event => event.stopPropagation()}>
+      <div className="risk-pop-icon red"><Trash2 size={24} /></div>
+      <h3 id="professor-history-delete-title">Delete history entry?</h3>
+      <p id="professor-history-delete-description">This permanently removes the selected activity from your professor timeline. Academic records and other users' history are kept. This action cannot be reversed.</p>
+      {error && <p className="connection-message connection-message--error" role="alert">{error}</p>}
+      <div className="risk-pop-actions">
+        <button type="button" className="risk-pop-action-btn red" onClick={onConfirm} disabled={deleting}>{deleting ? 'Deleting Record...' : 'Delete Permanently'}</button>
+        <button type="button" className="risk-pop-dismiss-btn" onClick={onDismiss} disabled={deleting} autoFocus>Keep Entry</button>
+      </div>
+    </div>
+  </div>;
 }
 
 function HistoryResults({ url, page, onNext, onPrevious, children }) {
@@ -88,15 +112,39 @@ function HistoryResults({ url, page, onNext, onPrevious, children }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [entryPendingDeletion, setEntryPendingDeletion] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteError, setDeleteError] = useState('');
+  const requestVersion = useRef(0);
   const refresh = async () => {
+    const version = ++requestVersion.current;
     setRefreshing(true);
     try {
       const response = await apiFetch(url);
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || 'Could not load your professor history.');
-      setData(result); setError('');
-    } catch (err) { setError(err.message || 'Could not load professor history.'); }
-    finally { setRefreshing(false); }
+      if (version === requestVersion.current) { setData(result); setError(''); }
+    } catch (err) { if (version === requestVersion.current) setError(err.message || 'Could not load professor history.'); }
+    finally { if (version === requestVersion.current) setRefreshing(false); }
+  };
+  const deleteEntry = async () => {
+    const entry = entryPendingDeletion;
+    if (!entry || deletingId) return;
+    setDeletingId(entry.id); setDeleteError('');
+    ++requestVersion.current;
+    setRefreshing(false);
+    try {
+      const response = await apiFetch(`/api/professor/history/${encodeURIComponent(entry.id)}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || 'Could not delete this history entry.');
+      ++requestVersion.current;
+      setData(current => current ? { ...current, events: current.events.filter(event => event.id !== entry.id),
+        total: Math.max(0, current.total - 1), counts: { ...current.counts, [entry.category]: Math.max(0, (current.counts?.[entry.category] || 0) - 1) } } : current);
+      setEntryPendingDeletion(null);
+      if (data?.events.length === 1 && page > 1) onPrevious();
+      else await refresh();
+    } catch (err) { setDeleteError(err.message || 'Could not delete this history entry.'); }
+    finally { setDeletingId(null); }
   };
   useAdaptivePolling(refresh, { intervalMs: 15000 });
   return <>
@@ -107,8 +155,9 @@ function HistoryResults({ url, page, onNext, onPrevious, children }) {
     <div className="professor-history-list-heading"><p>{data ? `${data.total} matching ${data.total === 1 ? 'event' : 'events'}` : 'Loading activity...'}</p><button type="button" className="connection-button" onClick={refresh} disabled={refreshing}><RefreshCw size={15} /> {refreshing ? 'Refreshing...' : 'Refresh'}</button></div>
     {error && <p className="connection-message connection-message--error" role="alert">{error}</p>}
     {!data && !error && <p className="professor-history-loading" role="status">Loading your activity history...</p>}
-    {data && (data.events.length ? <ol className="professor-history-list">{data.events.map(event => <ProfessorHistoryEvent key={event.id} event={event} />)}</ol> : <div className="professor-history-empty"><History size={28} /><h3>No history to display</h3><p>Your imports, corrections, connection changes, provider transfers, and student forecasts will appear here. Try adjusting your filters.</p></div>)}
+    {data && (data.events.length ? <ol className="professor-history-list">{data.events.map(event => <ProfessorHistoryEvent key={event.id} event={event} deleting={deletingId === event.id} onDelete={entry => { setDeleteError(''); setEntryPendingDeletion(entry); }} />)}</ol> : <div className="professor-history-empty"><History size={28} /><h3>No history to display</h3><p>Your imports, corrections, connection changes, provider transfers, and student forecasts will appear here. Try adjusting your filters.</p></div>)}
     <div className="professor-history-pagination"><button type="button" className="connection-button" disabled={page === 1 || refreshing} onClick={onPrevious}>Previous</button><span>Page {page}</span><button type="button" className="connection-button" disabled={!data?.nextCursor || refreshing} onClick={() => onNext(data.nextCursor)}>Next</button></div>
+    <ProfessorHistoryDeleteDialog event={entryPendingDeletion} deleting={Boolean(deletingId)} error={deleteError} onConfirm={deleteEntry} onDismiss={() => setEntryPendingDeletion(null)} />
   </>;
 }
 

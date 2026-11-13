@@ -9,6 +9,7 @@ router.use(protect);
 router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 router.get('/students', listConnectedStudentWorkspace);
 router.get('/history', require('../controllers/professorHistoryController').getProfessorHistory);
+router.delete('/history/:eventId', require('../controllers/professorHistoryController').deleteProfessorHistoryEntry);
 router.get('/academic-imports/template', imports.template);
 router.get('/academic-imports', batchForecasts.list);
 router.post('/academic-imports/preview', express.text({ type: 'text/csv', limit: '1mb', defaultCharset: 'utf-8' }), imports.preview);

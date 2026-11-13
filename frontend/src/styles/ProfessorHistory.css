@@ -23,6 +23,9 @@
 .professor-history-list-heading p,.professor-history-pagination { font-size:.8rem; color:#64788e; }
 .professor-history-list { list-style:none; padding:0; margin:0; display:grid; gap:.8rem; }
 .professor-history-item { border:1px solid #e1eaf1; border-radius:10px; background:white; overflow:hidden; box-shadow:0 1px 3px rgba(16,43,74,.02); }
+.professor-history-item { display:grid; grid-template-columns:minmax(0,1fr) auto; }
+.professor-history-item details { min-width:0; }
+.professor-history-event-actions { padding:1.15rem 1.15rem 1.15rem 0; }
 .professor-history-item summary { display:flex; gap:1rem; align-items:center; padding:1.15rem; list-style:none; cursor:pointer; }
 .professor-history-item summary::-webkit-details-marker { display:none; }
 .professor-history-item summary:focus-visible { outline:2px solid #3e82c4; outline-offset:-3px; }
@@ -59,3 +62,4 @@
 @media(max-width:1100px) { .professor-history-summary { grid-template-columns:repeat(3,minmax(0,1fr)); } .professor-history-filters { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media(max-width:700px) { .professor-history-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } .professor-history-filters { grid-template-columns:repeat(2,minmax(0,1fr)); padding:.9rem; } .professor-history-filter-actions { grid-column:span 2; } .professor-history-item summary { flex-wrap:wrap; padding:1rem; gap:.7rem; } .professor-history-event-date { flex-basis:100%; text-align:left; padding-left:calc(39px + .7rem); } .professor-history-chevron { margin-left:auto; } }
 @media(max-width:420px) { .professor-history-summary article { padding:.8rem; gap:.5rem; } .professor-history-icon { width:32px; height:32px; } .professor-history-metadata { grid-template-columns:1fr; } .professor-history-readonly { margin-top:.6rem; } }
+@media(max-width:700px) { .professor-history-item { grid-template-columns:minmax(0,1fr); } .professor-history-event-actions { display:flex; justify-content:flex-end; padding:0 1rem 1rem; } }

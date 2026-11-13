@@ -5,6 +5,7 @@ const Revision = require('../models/AcademicRecordRevision');
 const Activity = require('../models/StudentActivity');
 const Connection = require('../models/StudentProfessorConnection');
 const User = require('../models/User');
+const Deletion = require('../models/ProfessorHistoryDeletion');
 const { ACADEMIC_FIELDS, institutionKey, fail } = require('../utils/academicValidation');
 
 const CATEGORIES = ['csv_import', 'academic_correction', 'connection', 'provider_transfer', 'forecast'];
@@ -101,14 +102,44 @@ function legacyForecastEvent(activity) {
       legacy: !activity.inputVersion } };
 }
 
+async function historyScope(user) {
+  if (user.role !== 'professor') throw fail('Only professors can access this history.', 403);
+  const key = institutionKey(user.institution);
+  if (!key) throw fail('Add your institution before viewing professor history.', 409);
+  const connections = await Connection.find({ professor: user._id, status: 'accepted' }).populate('student', 'fullName institution').lean();
+  const connected = connections.filter(item => item.student && institutionKey(item.student.institution) === key);
+  return { key, connected, queries: {
+    batch: { professor: user._id, institutionKey: key, status: 'committed' },
+    revision: and({ $or: [{ actor: user._id }, { 'before.provider': user._id }, { 'after.provider': user._id }, { 'before.pendingProvider': user._id }, { 'after.pendingProvider': user._id }] },
+      { $or: [{ 'after.institutionKey': key }, { 'before.institutionKey': key }] }, { action: { $in: ['corrected', ...TRANSFERS] } }),
+    history: { professors: user._id, institutionKey: key, category: { $in: ['connection', 'forecast'] } },
+    forecast: and({ type: 'forecast_run', professorHistoryRecorded: { $ne: true } },
+      { $or: connected.length ? connected.map(item => ({ student: item.student._id, createdAt: { $gte: item.createdAt || new Date(0) } })) : [{ student: { $in: [] } }] }),
+  } };
+}
+
+exports.deleteProfessorHistoryEntry = async (req, res, next) => {
+  try {
+    const { key, queries } = await historyScope(req.user);
+    const match = /^(batch|revision|history|forecast):([a-f\d]{24})$/i.exec(req.params.eventId || '');
+    if (!match || !SOURCES.includes(match[1])) throw fail('Invalid history identifier.');
+    const [, source, id] = match;
+    const eventId = `${source}:${id.toLowerCase()}`;
+    const models = { batch: Batch, revision: Revision, history: Event, forecast: Activity };
+    const event = await models[source].exists(and(queries[source], { _id: id }));
+    if (!event) throw fail('History entry not found.', 404);
+    await Deletion.updateOne({ professor: req.user._id, institutionKey: key, eventId },
+      { $setOnInsert: { professor: req.user._id, institutionKey: key, eventId } }, { upsert: true });
+    res.json({ message: 'History entry deleted.' });
+  } catch (error) { next(error); }
+};
+
 exports.getProfessorHistory = async (req, res, next) => {
   try {
-    if (req.user.role !== 'professor') throw fail('Only professors can access this history.', 403);
     const filter = filtersFor(req.query);
-    const key = institutionKey(req.user.institution);
-    if (!key) throw fail('Add your institution before viewing professor history.', 409);
-    const connections = await Connection.find({ professor: req.user._id, status: 'accepted' }).populate('student', 'fullName institution').lean();
-    const connected = connections.filter(item => item.student && institutionKey(item.student.institution) === key);
+    const { key, connected, queries } = await historyScope(req.user);
+    const deletions = await Deletion.find({ professor: req.user._id, institutionKey: key }).select('eventId').lean();
+    const visible = source => ({ _id: { $nin: deletions.filter(item => item.eventId.startsWith(`${source}:`)).map(item => item.eventId.split(':')[1]) } });
     const allowed = new Set(connected.map(item => refId(item.student)));
     const matchingUsers = filter.regex ? await User.find({ institution: new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), role: 'student',
       $or: [{ fullName: filter.regex }, { email: filter.regex }] }).select('_id').lean() : [];
@@ -116,17 +147,15 @@ exports.getProfessorHistory = async (req, res, next) => {
     if (mongoose.isValidObjectId(filter.search)) matchingIds.push(new mongoose.Types.ObjectId(filter.search));
     const date = field => filter.from || filter.to ? { [field]: { ...(filter.from ? { $gte: filter.from } : {}), ...(filter.to ? { $lt: filter.to } : {}) } } : {};
     const period = (year, semester) => ({ ...(filter.academicYear ? { [year]: filter.academicYear } : {}), ...(filter.semester ? { [semester]: filter.semester } : {}) });
-    const batchQuery = and({ professor: req.user._id, institutionKey: key, status: 'committed' }, date('committedAt'),
+    const batchQuery = and(queries.batch, visible('batch'), date('committedAt'),
       filter.academicYear ? { $or: [{ academicYear: filter.academicYear }, { 'rows.values.academicYear': filter.academicYear }] } : {},
       filter.semester ? { $or: [{ semester: filter.semester }, { 'rows.values.semester': filter.semester }] } : {},
       filter.regex ? { $or: [{ 'rows.studentName': filter.regex }, { 'rows.values.studentEmail': filter.regex }, ...(mongoose.isValidObjectId(filter.search) ? [{ _id: new mongoose.Types.ObjectId(filter.search) }] : [])] } : {});
-    const revisionQuery = and({ $or: [{ actor: req.user._id }, { 'before.provider': req.user._id }, { 'after.provider': req.user._id }, { 'before.pendingProvider': req.user._id }, { 'after.pendingProvider': req.user._id }] },
-      { $or: [{ 'after.institutionKey': key }, { 'before.institutionKey': key }] }, date('createdAt'),
+    const revisionQuery = and(queries.revision, visible('revision'), date('createdAt'),
       period('after.academicYear', 'after.semester'), filter.regex ? { $or: [{ student: { $in: matchingIds } }, { studentName: filter.regex }, ...(mongoose.isValidObjectId(filter.search) ? [{ importBatch: new mongoose.Types.ObjectId(filter.search) }] : [])] } : {});
-    const storedQuery = and({ professors: req.user._id, institutionKey: key }, date('occurredAt'), period('academicYear', 'semester'),
+    const storedQuery = and(queries.history, visible('history'), date('occurredAt'), period('academicYear', 'semester'),
       filter.regex ? { $or: [{ 'student.fullName': filter.regex }, { 'student.id': { $in: matchingIds } }] } : {});
-    const legacyQuery = and({ type: 'forecast_run', professorHistoryRecorded: { $ne: true } },
-      { $or: connected.length ? connected.map(item => ({ student: item.student._id, createdAt: { $gte: item.createdAt || new Date(0) } })) : [{ student: { $in: [] } }] },
+    const legacyQuery = and(queries.forecast, visible('forecast'),
       date('createdAt'), period('record.academicYear', 'record.semester'), filter.regex ? { student: { $in: matchingIds } } : {});
     const correctionQuery = and(revisionQuery, { action: 'corrected' });
     const transferQuery = and(revisionQuery, { action: { $in: TRANSFERS } });

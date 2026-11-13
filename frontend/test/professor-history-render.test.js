@@ -21,12 +21,31 @@ before(async () => {
   page = compiled.exports;
 });
 const base = { id: 'event', occurredAt: '2026-11-11T04:00:00.000Z', actor: { fullName: 'Professor Chee', role: 'professor' }, student: { fullName: 'Student One' }, academicYear: '2025-2026', semester: 2 };
-const renderEvent = event => renderToStaticMarkup(React.createElement(page.ProfessorHistoryEvent, { event: { ...base, ...event } }));
+const renderEvent = (event, props = {}) => renderToStaticMarkup(React.createElement(page.ProfessorHistoryEvent, { event: { ...base, ...event }, ...props }));
 
-test('professor History renders all requested filters and read-only event categories', () => {
+test('professor History renders all requested filters and event categories', () => {
   const html = renderToStaticMarkup(React.createElement(page.default));
   for (const label of ['Professor History', 'CSV imports', 'Academic corrections', 'Connection activity', 'Provider transfers', 'Student forecasts', 'Search student or batch ID', 'Academic year', 'Semester', 'From date', 'To date', 'Apply filters']) assert.ok(html.includes(label), label);
-  assert.doesNotMatch(html, /history-delete-button/);
+});
+
+test('each event category has the student-style Delete action outside the expand control', () => {
+  for (const category of ['csv_import', 'academic_correction', 'connection', 'provider_transfer', 'forecast']) {
+    const html = renderEvent({ category, action: 'accepted', details: {} }, { onDelete() {} });
+    assert.match(html, /class="history-delete-btn"/); assert.match(html, />Delete</);
+    assert.ok(html.indexOf('</details>') < html.indexOf('class="history-delete-btn"'));
+    assert.match(html, /aria-label="Delete .+ from history"/);
+  }
+  const html = renderEvent({ category: 'forecast', detailsRestricted: true }, { onDelete() {}, deleting: true });
+  assert.match(html, /disabled=""/); assert.match(html, /Deleting\.\.\./);
+});
+
+test('delete confirmation matches the student dialog and explains the personal timeline scope', () => {
+  const renderDialog = props => renderToStaticMarkup(React.createElement(page.ProfessorHistoryDeleteDialog, { event: base, ...props }));
+  const html = renderDialog({});
+  for (const label of ['risk-pop-modal border-red', 'Delete history entry?', 'Delete Permanently', 'Keep Entry', "other users&#x27; history are kept", 'role="dialog"', 'aria-modal="true"']) assert.ok(html.includes(label), label);
+  const pending = renderDialog({ deleting: true, error: 'Please retry.' });
+  assert.equal((pending.match(/disabled=""/g) || []).length, 2); assert.match(pending, /role="alert"/); assert.match(pending, /Please retry/);
+  assert.equal(renderDialog({ event: null }), '');
 });
 test('import details show the source period, professor, batch, and exact new/corrected/unchanged counts', () => {
   const html = renderEvent({ category: 'csv_import', action: 'confirmed', student: null, details: { batchId: 'batch-123', counts: { created: 5, corrected: 2, unchanged: 0 } } });
