@@ -39,15 +39,6 @@ export default function ProfessorDashboardView({ user, activeTab }) {
     return () => { isMounted = false; };
   }, [apiFetch]);
 
-  useEffect(() => {
-    if (!isTutorialOpen) return undefined;
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") setIsTutorialOpen(false);
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isTutorialOpen]);
-
   if (activeTab === "history" || activeTab === "connections") return null;
 
   if (activeTab === "data") {
@@ -61,7 +52,7 @@ export default function ProfessorDashboardView({ user, activeTab }) {
           <button
             type="button"
             className="data-workspace-help"
-            onClick={() => setIsTutorialOpen((open) => !open)}
+            onClick={() => setIsTutorialOpen(true)}
             aria-label={isTutorialOpen ? "Close professor data workspace tutorial" : "Open professor data workspace tutorial"}
             aria-expanded={isTutorialOpen}
             aria-controls={isTutorialOpen ? "professor-data-tutorial" : undefined}
@@ -88,12 +79,7 @@ export default function ProfessorDashboardView({ user, activeTab }) {
         </div>
 
         {isTutorialOpen && (
-          <div
-            className="academic-tutorial-backdrop"
-            onClick={(event) => {
-              if (event.target === event.currentTarget) setIsTutorialOpen(false);
-            }}
-          >
+          <div className="academic-tutorial-backdrop">
             <section
               id="professor-data-tutorial"
               className="academic-tutorial-modal"

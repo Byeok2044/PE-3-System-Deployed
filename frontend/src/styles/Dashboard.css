@@ -3160,11 +3160,6 @@
   outline: none;
 }
 
-#data .data-workspace-help[aria-expanded="true"] {
-  position: relative;
-  z-index: 2101;
-}
-
 .academic-tutorial-backdrop {
   position: fixed;
   inset: 0;
@@ -3285,7 +3280,6 @@
 
 .academic-tutorial-opt-out {
   display: inline-flex;
-  align-items: flex-start;
   gap: 0.5rem;
   color: #475569;
   font-size: 0.82rem;
