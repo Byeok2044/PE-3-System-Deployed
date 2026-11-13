@@ -34,6 +34,7 @@ beforeEach(() => {
   for (const [key, value] of Object.entries({
     BREVO_API_KEY: 'test-key', BREVO_SENDER_EMAIL: 'support@example.test',
     PUBLIC_APP_URL: 'https://students.example.test', RISK_ALERT_COOLDOWN_HOURS: '168',
+    PUBLIC_API_URL: 'https://api.example.test', JWT_SECRET: 'test-risk-alert-key',
   })) {
     const original = process.env[key]; process.env[key] = value;
     restores.push(() => { if (original === undefined) delete process.env[key]; else process.env[key] = original; });
@@ -160,6 +161,28 @@ test('an unverified student is skipped without preventing verified professor not
   assert.ok(deliveries.every((payload) => payload.to[0].email !== student.email));
 });
 
+test('historical semester alerts recheck the selected record and keep its trajectory snapshot', async () => {
+  const workspaceService = require('../src/utils/academicWorkspace');
+  const User = require('../src/models/User');
+  const record = { academicRecordId: 'historical-semester', previousSemesterGrade: 8, gradeMaximum: 20 };
+  const reads = [];
+  stub(User, 'findById', async id => id === student._id ? student : professor(id));
+  stub(Connection, 'exists', async () => true);
+  stub(workspaceService, 'loadWorkspace', async (_student, options) => {
+    reads.push(options);
+    return { inputVersion: options.academicRecordId === record.academicRecordId ? 'historical-version' : 'latest-version' };
+  });
+
+  await sendRiskAlerts(student, forecast, { inputVersion: 'historical-version', forecastId: 'forecast', record });
+
+  assert.equal(reads.length, 3);
+  assert.ok(reads.every(options => options.academicRecordId === record.academicRecordId && options.includeForecast === false));
+  assert.equal(deliveries.length, 3);
+  assert.ok(deliveries.every(payload => /Current Term: <strong>8\.00/.test(payload.htmlContent)));
+  assert.ok(deliveries.every(payload => payload.attachment?.[0].name === 'academic-trajectory.png'));
+  assert.equal(errors.length, 0);
+});
+
 test('prediction route saves the forecast and notifies professors while email failures leave the response successful', async () => {
   const workspaceService = require('../src/utils/academicWorkspace');
   const User = require('../src/models/User');
@@ -183,4 +206,5 @@ test('prediction route saves the forecast and notifies professors while email fa
   assert.equal(activities[0].record.studySchedule, undefined);
   assert.equal(deliveries.length, 2);
   assert.ok(deliveries.every((payload) => payload.to[0].email.startsWith('professor')));
+  assert.ok(deliveries.every((payload) => payload.attachment?.[0].name === 'academic-trajectory.png'));
 });

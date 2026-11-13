@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const axios = require('axios');
+const riskNotifications = require('../utils/riskAlertNotifications');
 const Batch = require('../models/AcademicImportBatch');
 const Entry = require('../models/AcademicBatchForecast');
 const User = require('../models/User');
@@ -153,7 +154,10 @@ exports.runEntry = async (req, res, next) => {
       data.riskLevel = data.dropoutProbability < 0.2 ? 'low' : data.dropoutProbability < 0.4 ? 'medium' : 'high';
       const current = await eligibleWorkspace(entry, batch, req.user);
       if (current.workspace.inputVersion !== workspace.inputVersion) throw fail('Student inputs changed while forecasting. Retry this student.', 409);
-      await history.saveForecastActivity(student, workspace, data, { actor: req.user, batchEntry: entry, section: batch.section });
+      const activity = await history.saveForecastActivity(student, workspace, data, { actor: req.user, batchEntry: entry, section: batch.section });
+      try {
+        await riskNotifications.sendRiskAlerts(student, data, { inputVersion: workspace.inputVersion, forecastId: activity._id, record: workspace.record });
+      } catch (error) { console.error('Unable to send class forecast risk alerts:', error.message); }
       return res.json({ status: 'succeeded' });
     } catch (error) {
       const upstreamStatus = error.response?.status;

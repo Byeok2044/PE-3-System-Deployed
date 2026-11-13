@@ -29,7 +29,8 @@ const sendRiskAlerts = async (student, forecast, context) => {
 
       if (context) {
         const currentStudent = await User.findById(student._id);
-        const workspace = await workspaceService.loadWorkspace(currentStudent, { includeForecast: false });
+        const workspace = await workspaceService.loadWorkspace(currentStudent, { includeForecast: false,
+          ...(context.record?.academicRecordId ? { academicRecordId: context.record.academicRecordId } : {}) });
         if (workspace.inputVersion !== context.inputVersion) return;
         if (role === 'professor') {
           const currentProfessor = await User.findById(recipient._id);

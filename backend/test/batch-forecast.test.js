@@ -46,7 +46,8 @@ function batchFixture() {
   });
 }
 function runFixture() {
-  batchFixture(); const calls = { ml: [], saves: [], updates: [] };
+  batchFixture(); const calls = { ml: [], saves: [], updates: [], notifications: [] };
+  stub(require('../src/utils/riskAlertNotifications'), 'sendRiskAlerts', async (...args) => { calls.notifications.push(args); });
   stub(Entry, 'findOneAndUpdate', async filter => { calls.claim = filter; return { ...entry }; });
   stub(Entry, 'updateOne', async (...args) => { calls.updates.push(args); return { modifiedCount: 1 }; });
   stub(User, 'findById', async () => student);
@@ -95,7 +96,26 @@ test('prediction uses the selected imported semester and saved personal context'
   assert.equal(calls.ml[0][2].timeout, 90000);
   assert.equal(calls.saves[0][3].actor, professor); assert.equal(calls.saves[0][3].batchEntry.batch, batch._id);
   assert.equal(calls.saves[0][3].section, 'BSIT 3-3');
+  assert.equal(calls.notifications.length, 1);
+  assert.equal(calls.notifications[0][0], student);
+  assert.equal(calls.notifications[0][2].forecastId, id(9));
+  assert.equal(calls.notifications[0][2].inputVersion, workspace.inputVersion);
+  assert.deepEqual(calls.notifications[0][2].record, workspace.record);
   assert.ok(calls.claim.$or.some(option => option.status === 'processing' && option.leaseExpiresAt.$lte instanceof Date));
+});
+test('email delivery failure leaves the saved class forecast successful', async () => {
+  const calls = runFixture();
+  stub(require('../src/utils/riskAlertNotifications'), 'sendRiskAlerts', async () => { throw new Error('Email unavailable'); });
+  const errors = [];
+  stub(console, 'error', (...args) => errors.push(args));
+
+  const res = await invoke(controller.runEntry);
+
+  assert.ifError(res.error);
+  assert.equal(res.body.status, 'succeeded');
+  assert.equal(calls.saves.length, 1);
+  assert.equal(calls.updates.length, 0);
+  assert.equal(errors.length, 1);
 });
 test('risk tiers use exact 20% and 40% boundaries, including zero risk', async () => {
   const calls = runFixture();
