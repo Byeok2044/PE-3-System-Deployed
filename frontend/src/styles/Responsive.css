@@ -90,6 +90,7 @@
   /* Prevent automatic zoom on phone form focus. */
   input, select, textarea,
   .message-center__thread textarea { font-size: 16px; max-width: 100%; }
+  .message-filter-field input, .message-filter-field select { min-height: 44px; font-size: 16px; }
 }
 
 @media (max-width: 380px) {

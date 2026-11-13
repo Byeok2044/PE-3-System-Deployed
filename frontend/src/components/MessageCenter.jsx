@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Ellipsis, MessageCircle, Reply, Send, Trash2, UserRoundPlus } from "lucide-react";
+import { Ellipsis, MessageCircle, Reply, Search, Send, Trash2, UserRoundPlus } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import useAdaptivePolling from "../hooks/useAdaptivePolling.js";
 import ProfileAvatar from './ProfileAvatar.jsx';
@@ -21,6 +21,8 @@ export default function MessageCenter({ initialSelectedUser, onUnreadCountChange
   const { apiFetch, user } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [students, setStudents] = useState([]);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [riskFilter, setRiskFilter] = useState("all");
   const [selected, setSelected] = useState(null);
   const [showMobileThread, setShowMobileThread] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -297,6 +299,21 @@ export default function MessageCenter({ initialSelectedUser, onUnreadCountChange
       )
   );
 
+  const isProfessor = user.role === "professor";
+  const searchQuery = studentSearch.trim().toLowerCase();
+  const hasFilters = Boolean(searchQuery || riskFilter !== "all");
+  const matchesFilters = (person) => {
+    if (!isProfessor) return true;
+    const tier = riskTier(studentById.get(String(person.id))?.forecast) || "pending";
+    return (riskFilter === "all" || riskFilter === tier)
+      && (!searchQuery || [person.fullName, person.email]
+        .some((value) => String(value || "").toLowerCase().includes(searchQuery)));
+  };
+  const filteredStudents = availableStudents.filter(({ student }) => matchesFilters(student));
+  const filteredConversations = conversations.filter(({ peer }) => matchesFilters(peer));
+  const visibleCount = filteredStudents.length + filteredConversations.length;
+  const totalCount = availableStudents.length + conversations.length;
+
   const riskBadge = (studentId) => {
     const tier = riskTier(studentById.get(String(studentId))?.forecast);
     return tier ? (
@@ -330,22 +347,53 @@ export default function MessageCenter({ initialSelectedUser, onUnreadCountChange
 
       <div className={`message-center__layout ${showMobileThread && selected ? "is-thread-open" : ""}`}>
         <aside aria-label="Conversations">
-          {availableStudents.length > 0 && (
+          {isProfessor && (
+            <div className="message-center__filters" aria-label="Filter students">
+              <label className="message-filter-field" htmlFor="message-student-search">
+                <span>Find a student</span>
+                <div className="message-filter-search">
+                  <Search size={16} aria-hidden="true" />
+                  <input
+                    id="message-student-search"
+                    type="search"
+                    placeholder="Search name or email"
+                    value={studentSearch}
+                    onChange={(event) => setStudentSearch(event.target.value)}
+                  />
+                </div>
+              </label>
+              <label className="message-filter-field" htmlFor="message-risk-filter">
+                <span>Risk level</span>
+                <select id="message-risk-filter" value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)}>
+                  <option value="all">All risk levels</option>
+                  <option value="high">High risk</option>
+                  <option value="medium">Medium risk</option>
+                  <option value="low">Low risk</option>
+                  <option value="pending">No forecast</option>
+                </select>
+              </label>
+              <div className="message-filter-summary">
+                <span role="status">{loading ? "Loading students…" : `${visibleCount} of ${totalCount} students`}</span>
+                {hasFilters && <button type="button" onClick={() => { setStudentSearch(""); setRiskFilter("all"); }}>Clear filters</button>}
+              </div>
+            </div>
+          )}
+          {filteredStudents.length > 0 && (
             <div className="message-center__start">
               <strong>
                 {user.role === "professor"
                   ? "Start supportive outreach"
                   : "Start a conversation"}
               </strong>
-              {availableStudents.map(({ student }) => (
+              {filteredStudents.map(({ student }) => (
                 <button
                   type="button"
                   onClick={() => begin(student.id)}
                   key={student.id}
                 >
                   <UserRoundPlus size={15} />
-                  <span>
-                    {student.fullName}
+                  <span className="message-outreach-person">
+                    <span className="message-outreach-name">{student.fullName}</span>
                     {user.role === "professor" && riskBadge(student.id)}
                   </span>
                 </button>
@@ -355,8 +403,8 @@ export default function MessageCenter({ initialSelectedUser, onUnreadCountChange
 
           {loading ? (
             <p>Loading conversations…</p>
-          ) : conversations.length ? (
-            conversations.map((conversation) => (
+          ) : filteredConversations.length ? (
+            filteredConversations.map((conversation) => (
               <button
                 className={`conversation-row ${selected?.id === conversation.id ? "is-selected" : ""} ${conversation.unreadCount > 0 ? "is-unread" : "is-read"}`}
                 type="button"
@@ -389,6 +437,8 @@ export default function MessageCenter({ initialSelectedUser, onUnreadCountChange
                 )}
               </button>
             ))
+          ) : isProfessor && hasFilters ? (
+            visibleCount === 0 && <p className="message-center__empty">No students match these filters. Try another risk level or search, or clear the filters.</p>
           ) : (
             <p className="message-center__empty">
               No messages yet.
